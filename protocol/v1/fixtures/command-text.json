@@ -1,0 +1,1 @@
+{"version":1,"kind":"command","id":"cmd-text-1","target":{"deviceId":"device-a","sessionId":"epoch-a"},"operation":"text.send","params":{"conversationId":"chat-local-1","text":"你好，SDK 👋"},"expiresAt":2000000000000}
