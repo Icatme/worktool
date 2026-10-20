@@ -7,9 +7,9 @@
     {"$ref": "#/$defs/result"}, {"$ref": "#/$defs/event"}, {"$ref": "#/$defs/error"}
   ],
   "$defs": {
-    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$"},
+    "identifier": {"type": "string", "minLength": 1, "maxLength": 128, "not": {"pattern": "[^A-Za-z0-9._:-]"}},
     "timestamp": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
-    "code": {"type": "string", "pattern": "^[a-z0-9_]{1,64}$"},
+    "code": {"type": "string", "minLength": 1, "maxLength": 64, "not": {"pattern": "[^a-z0-9_]"}},
     "target": {
       "type": "object", "required": ["deviceId", "sessionId"],
       "properties": {"deviceId": {"$ref": "#/$defs/identifier"}, "sessionId": {"$ref": "#/$defs/identifier"}}
@@ -27,7 +27,7 @@
           "type": "object", "required": ["conversationId", "text"],
           "properties": {
             "conversationId": {"$ref": "#/$defs/identifier"},
-            "text": {"type": "string", "minLength": 1, "maxLength": 4000, "description": "Also bounded to 4000 UTF-16 code units and nonblank by implementations"}
+            "text": {"type": "string", "minLength": 1, "maxLength": 4000, "pattern": "[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]", "description": "Also bounded to 4000 UTF-16 code units by implementations"}
           }
         }}}
       }]
@@ -63,7 +63,7 @@
         "data": {
           "type": "object", "required": ["conversationId", "text", "sender", "source"],
           "properties": {
-            "conversationId": {"$ref": "#/$defs/identifier"}, "text": {"type": "string", "minLength": 1, "maxLength": 4000},
+            "conversationId": {"$ref": "#/$defs/identifier"}, "text": {"type": "string", "minLength": 1, "maxLength": 4000, "pattern": "[^\\u0009-\\u000d\\u001c-\\u0020\\u0085\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]"},
             "sender": {"enum": ["remote", "self"]}, "source": {"const": "visible_ui"}
           }
         }

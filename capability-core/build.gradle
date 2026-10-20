@@ -1,0 +1,18 @@
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+}
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+kotlin { compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8 } }
+dependencies {
+    api 'com.google.code.gson:gson:2.13.2'
+    testImplementation 'junit:junit:4.13.2'
+}
+test {
+    workingDir rootProject.projectDir
+    testLogging { events 'passed', 'failed', 'skipped' }
+    systemProperty 'contract.dir', rootProject.layout.buildDirectory.dir('contract').get().asFile
+}
