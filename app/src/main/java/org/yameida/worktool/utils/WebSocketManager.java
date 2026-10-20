@@ -56,24 +56,10 @@ public class WebSocketManager {
         send(new WeworkMessageListBean(msg, WeworkMessageListBean.SOCKET_TYPE_MESSAGE_LIST, null, null));
     }
 
-    /**
-     * 确认消息
-     * @param messageId 保存在map中30秒后清除
-     * @return true继续消费事件 false重复事件不需消息
-     */
+    /** Receipt ACK only. Deduplication belongs to the command queue, not the transport. */
     public synchronized boolean confirm(String messageId) {
-        if (messageId == null || messageId.isEmpty()) return true;
+        if (messageId == null || messageId.trim().isEmpty()) return false;
         send(new WeworkMessageListBean(messageId, WeworkMessageListBean.SOCKET_TYPE_MESSAGE_CONFIRM));
-        if (messageIdMap.containsKey(messageId)) return false;
-        long currentTimeMillis = System.currentTimeMillis();
-        messageIdMap.put(messageId, currentTimeMillis + 30 * 1000);
-        for (Map.Entry<String, Long> entry : messageIdMap.entrySet()) {
-            String key = entry.getKey();
-            Long value = entry.getValue();
-            if (currentTimeMillis > value) {
-                messageIdMap.remove(key);
-            }
-        }
         return true;
     }
 

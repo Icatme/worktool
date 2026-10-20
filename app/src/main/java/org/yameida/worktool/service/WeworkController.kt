@@ -348,7 +348,7 @@ object WeworkController {
      */
     @RequestMapping
     fun pushFile(message: WeworkMessageBean): Boolean {
-        LogUtils.d("REQUEST pushFile(): ${message.messageId} ${message.titleList} ${message.objectName} ${message.fileUrl} ${message.fileBase64?.substring(0, 100)} ${message.fileType} ${message.extraText}")
+        LogUtils.d("REQUEST pushFile(): ${message.messageId} ${message.titleList} ${message.objectName} ${message.fileUrl} ${message.fileBase64?.length ?: 0} bytes(base64 omitted) ${message.fileType} ${message.extraText}")
         return WeworkOperationImpl.pushFile(
             message,
             message.titleList,
@@ -521,7 +521,7 @@ object WeworkController {
      */
     @RequestMapping
     fun scanQrCode(message: WeworkMessageBean): Boolean {
-        LogUtils.d("REQUEST scanQrCode(): ${message.messageId} ${message.fileUrl} ${message.fileBase64?.substring(0, 100)}")
+        LogUtils.d("REQUEST scanQrCode(): ${message.messageId} ${message.fileUrl} ${message.fileBase64?.length ?: 0} bytes(base64 omitted)")
         return WeworkOperationImpl.scanQrCode(
             message,
             message.fileUrl,
@@ -589,7 +589,7 @@ object WeworkController {
      */
     @RequestMapping
     fun getLocalFile(message: WeworkMessageBean): Boolean {
-        LogUtils.d("REQUEST getLocalFile(): ${message.messageId} ${message.fileUrl}")
+        LogUtils.d("REQUEST getLocalFile(): ${message.messageId} [export filename omitted]")
         return WeworkGetImpl.getLocalFile(message, message.fileUrl)
     }
 
