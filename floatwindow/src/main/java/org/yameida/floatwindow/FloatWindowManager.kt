@@ -29,11 +29,12 @@ object FloatWindowManager {
     }
 
     private fun startServiceSafe(intent: Intent) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            context.startForegroundService(intent)
-        } else {
-            context.startService(intent)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(intent)
+            } else context.startService(intent)
+        } catch (e: IllegalStateException) {
+            com.blankj.utilcode.util.ToastUtils.showShort("请返回 WorkTool 页面开启悬浮控制")
         }
     }
-
 }

@@ -66,14 +66,15 @@ object Constant {
         get() = SPUtils.getInstance().getBoolean("friendRemarkStrict", false)
         set(value) = SPUtils.getInstance().put("friendRemarkStrict", value)
     var pushImage = false
+        get() = field && enableMediaProject
     var autoPublishComment: Boolean
         get() = SPUtils.getInstance().getBoolean("autoPublishComment", true)
         set(value) = SPUtils.getInstance().put("autoPublishComment", value)
-    var groupQrCode: Boolean
-        get() = SPUtils.getInstance().getBoolean("groupQrCode", false)
-        set(value) = SPUtils.getInstance().put("groupQrCode", value)
+    // The old DCIM scraper has no user-granted URI contract. Do not revive a stored opt-in.
+    const val groupQrCode = false
     var enableMediaProject = false
-    var enableSdkShare = false
+    // Bundled WWAPI uses legacy receivers/PendingIntents; keep it inert pending an SDK audit.
+    const val enableSdkShare = false
     var fullGroupName: Boolean
         get() = SPUtils.getInstance().getBoolean("fullGroupName", true)
         set(value) = SPUtils.getInstance().put("fullGroupName", value)

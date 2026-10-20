@@ -1,7 +1,7 @@
 package org.yameida.worktool.service
 
 import com.blankj.utilcode.util.*
-import com.hjq.toast.ToastUtils
+import com.blankj.utilcode.util.ToastUtils
 import org.yameida.worktool.model.ExecCallbackBean
 
 
@@ -21,7 +21,7 @@ object WeworkInteractionImpl {
         errorReason: String?
     ): Boolean {
         LogUtils.e("错误提示 错误码: $errorCode 错误信息: $errorReason")
-        ToastUtils.show("错误提示 错误码: $errorCode 错误信息: $errorReason")
+        ToastUtils.showShort("错误提示 错误码: $errorCode 错误信息: $errorReason")
         return true
     }
 

@@ -11,10 +11,14 @@
 $env:JAVA_HOME = '<existing JDK 17>'
 $env:ANDROID_HOME = '<approved SDK>'
 $env:GRADLE_USER_HOME = '<task-local Gradle cache>'
-.\gradlew.bat --no-daemon --console=plain :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
+.\gradlew.bat --no-daemon --console=plain -PunsignedValidation=true :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
 ```
 
+上述参数仅生成未签名 APK，不创建或使用签名凭据。
 保存控制台日志、JUnit XML、lint XML/HTML、合并 Manifest、依赖树和 APK SHA-256。
+SDK 组件不足时仍可执行 `:verification:test`（需要已有 platform 36、JDK 17），
+以及 `python scripts/check_android_contracts.py`。前者只编译指定生产边界并运行 JVM 测试，
+后者只是源码契约检查，两者均不能替代完整 Android 构建或 lint。
 检查最终 Manifest 的 exported、permission、provider paths 和 FGS 类型。
 检查 APK 全部 `lib/<abi>/*.so`：arm64-v8a 是否齐全，ELF LOAD p_align 是否 >=16KB；
 用官方 `zipalign -c -P 16 -v 4 <apk>` 检查打包对齐。无 .so 也应记录检查结果。
@@ -37,7 +41,8 @@ API 34、35、36 各至少一台 AOSP 模拟器或测试设备；API 24、30、3
 API 35/36 至少包含一台 16KB page size 环境。记录 OS build、企微版本、
 安装渠道、授权状态、APK hash 和结果，不使用个人真实账号。
 
-1. 全新安装启动：无后台 FGS 异常，默认不连接测试外部服务；
+1. 全新安装启动：清空历史应用数据、不输入 robotId、不启用无障碍，不连接商业服务；
+   无后台 FGS 异常；旧 WWAPI 和群二维码相册功能保持关闭；
    不启用无障碍/悬浮窗/录屏时页面可用；旋转、edge-to-edge、字体放大不遮挡操作。
 2. 拒绝通知、取消录屏均正常返回；用户同意一次录屏后连续获取 >=20 帧，
    不重复授权、不重复 createVirtualDisplay；旋转/窗口改变后尺寸正确或明确重授权。

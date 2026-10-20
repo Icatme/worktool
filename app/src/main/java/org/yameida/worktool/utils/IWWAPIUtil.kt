@@ -4,7 +4,6 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.drawable.BitmapDrawable
 import com.blankj.utilcode.util.*
-import com.lzy.okgo.OkGo
 import com.tencent.wework.api.IWWAPI
 import com.tencent.wework.api.WWAPIFactory
 import com.tencent.wework.api.model.WWMediaLink
@@ -23,6 +22,7 @@ object IWWAPIUtil {
     private var iwwapi: IWWAPI? = null
 
     fun init(context: Context) {
+        if (!Constant.enableSdkShare) return
         iwwapi = WWAPIFactory.createWWAPI(context)
         iwwapi?.unregisterApp()
         val result = iwwapi?.registerApp(Constant.weworkSchema)
@@ -30,6 +30,7 @@ object IWWAPIUtil {
     }
 
     fun sendLink(thumbUrl: String?, webpageUrl: String?, title: String?, description: String?): Boolean {
+        if (!Constant.enableSdkShare) return false
         val link = WWMediaLink()
         link.thumbUrl = thumbUrl
         link.webpageUrl = webpageUrl
@@ -43,6 +44,7 @@ object IWWAPIUtil {
     }
 
     fun sendMicroProgram(imageUrl: String?, webpageUrl: String?, title: String?, description: String?): Boolean {
+        if (!Constant.enableSdkShare) return false
         val miniProgram = WWMediaMiniProgram()
         miniProgram.appPkg = AppUtils.getAppPackageName()
         miniProgram.appName = AppUtils.getAppName()
@@ -62,9 +64,9 @@ object IWWAPIUtil {
         miniProgram.hdImageData = stream.toByteArray()
         if (imageUrl != null) {
             LogUtils.i("下载开始 $imageUrl")
-            val execute = OkGo.get<File>(imageUrl).execute()
+            val downloaded = HttpTransport.download(imageUrl)
             LogUtils.i("下载完成 $imageUrl")
-            val body = execute.body()
+            val body = downloaded
             if (body != null) {
                 val df = SimpleDateFormat("yyyy-MM-dd")
                 val filePath = "${
@@ -73,7 +75,7 @@ object IWWAPIUtil {
                 val newFile = File(filePath)
                 val create = FileUtils.createFileByDeleteOldFile(newFile)
                 if (create && newFile.canWrite()) {
-                    newFile.writeBytes(body.bytes())
+                    newFile.writeBytes(body)
                     LogUtils.i("文件存储本地成功 $filePath")
                     val bitmap = ImageUtils.bytes2Bitmap(File(filePath).readBytes())
                     val stream = ByteArrayOutputStream()

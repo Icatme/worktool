@@ -1,0 +1,30 @@
+// Resolve external artifacts without building the Android project (useful before SDK approval).
+tasks.register('thirdPartyInventory') {
+    doLast {
+        def records = []
+        def artifacts = configurations.debugRuntimeClasspath.incoming.artifactView {
+            componentFilter { it instanceof org.gradle.api.artifacts.component.ModuleComponentIdentifier }
+        }.artifacts.artifacts
+        def files = artifacts.collect { [id: it.id.componentIdentifier.displayName, file: it.file] }
+        files += fileTree('libs').matching { include 'lib_wwapi-2.0.12.11.aar' }.collect {
+            [id: 'vendored:wwapi:2.0.12.11', file: it]
+        }
+        files.each { item ->
+            def nativeEntries = []
+            if (item.file.name.endsWith('.aar') || item.file.name.endsWith('.jar')) {
+                new java.util.zip.ZipFile(item.file).withCloseable { archive ->
+                    archive.entries().each { entry ->
+                        if (entry.name.endsWith('.so')) nativeEntries += entry.name
+                    }
+                }
+            }
+            records += [component: item.id, artifact: item.file.name,
+                sha256: java.security.MessageDigest.getInstance('SHA-256').digest(item.file.bytes).encodeHex().toString(),
+                nativeLibraries: nativeEntries]
+        }
+        def report = layout.buildDirectory.file('reports/third-party-inventory.json').get().asFile
+        report.parentFile.mkdirs()
+        report.text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(records.sort { it.component }))
+        println "Inventoried ${records.size()} dependency artifacts; native entries: ${records.sum { it.nativeLibraries.size() }}"
+    }
+}

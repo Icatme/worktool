@@ -1,19 +1,33 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
 
 android {
-    compileSdkVersion 30
+    namespace 'org.yameida.worktool'
+    compileSdk 36
+    buildToolsVersion '35.0.0'
+    buildFeatures { viewBinding true; buildConfig true }
+    sourceSets {
+        test.java.srcDirs += ['../tests/jvm', '../verification/src/test/java']
+    }
+    testOptions {
+        unitTests.all { testLogging { events 'passed', 'failed', 'skipped' } }
+    }
 
     defaultConfig {
         applicationId "org.yameida.worktool"
         minSdkVersion 24
-        targetSdkVersion 30
+        targetSdkVersion 36
         versionCode 28011
         versionName "2.8.1"
     }
 
     buildTypes {
+        debug {
+            // Local validation can package without creating or touching a signing credential.
+            if (providers.gradleProperty('unsignedValidation').orNull == 'true') {
+                signingConfig null
+            }
+        }
         release {
             minifyEnabled true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
@@ -27,14 +41,13 @@ android {
         jvmTarget = '1.8'
     }
 }
+apply from: rootProject.file('scripts/dependency-inventory.gradle')
 
 dependencies {
     implementation project(':baselibrary')
     implementation project(':floatwindow')
-    implementation fileTree(dir: "libs", include: ["*.jar", "*.aar"])
+    implementation files('libs/lib_wwapi-2.0.12.11.aar')
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
 
-    //友盟统计SDK
-    implementation  'com.umeng.umsdk:common:9.4.7'// 必选
-    implementation  'com.umeng.umsdk:asms:1.4.1'// 必选
-    implementation 'com.umeng.umsdk:apm:1.5.2' // 错误分析升级为独立SDK，看crash数据请一定集成，可选
 }

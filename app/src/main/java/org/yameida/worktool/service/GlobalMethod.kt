@@ -6,7 +6,7 @@ import android.content.Intent
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import com.blankj.utilcode.util.*
-import com.hjq.toast.ToastUtils
+import com.blankj.utilcode.util.ToastUtils
 import org.yameida.worktool.Constant
 import org.yameida.worktool.MyApplication
 import org.yameida.worktool.model.ExecCallbackBean
@@ -21,7 +21,7 @@ var requestCode = 1000000
 fun fastStartActivity(context: Context, clazz: Class<*>, flags: Int = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP, i: Intent? = null) {
     val intent = i ?: Intent(context, clazz)
     intent.flags = flags
-    val pendingIntent = PendingIntent.getActivity(context, requestCode++, intent, 0)
+    val pendingIntent = PendingIntent.getActivity(context, requestCode++, intent, PendingIntent.FLAG_IMMUTABLE)
     try {
         pendingIntent.send()
     } catch (e: PendingIntent.CanceledException) {
@@ -74,7 +74,7 @@ fun goHomeTab(title: String): Boolean {
                 //如果在登录页面就提示关闭worktool主功能
                 if (AccessibilityUtil.findOnceByText(getRoot(), "手机号登录", exact = true) != null) {
                     LogUtils.e("登录前请先关闭WorkTool主功能！")
-                    ToastUtils.show("登录前请先关闭WorkTool主功能！")
+                    ToastUtils.showShort("登录前请先关闭WorkTool主功能！")
                     WeworkController.weworkService.disableSelf()
                     WeworkController.weworkService.webSocketManager.close(1000, "wework logout")
                     MyApplication.launchIntent()
@@ -149,7 +149,7 @@ fun getRoot(ignoreCheck: Boolean, share: Boolean = false): AccessibilityNodeInfo
                         error("当前不在企业微信: ${root.packageName}")
                         if (!FloatWindowHelper.isPause) {
                             LogUtils.e("当前不在企业微信: ${root.packageName}\n尝试跳转到企业微信")
-                            ToastUtils.show("当前不在企业微信: ${root.packageName}\n尝试跳转到企业微信")
+                            ToastUtils.showShort("当前不在企业微信: ${root.packageName}\n尝试跳转到企业微信")
                             Utils.getApp().packageManager.getLaunchIntentForPackage(Constant.PACKAGE_NAMES)
                                 ?.apply {
                                     this.flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -255,7 +255,7 @@ fun uploadCommandResult(message: WeworkMessageBean, errorCode: Int, errorReason:
     )
     if (errorCode != 0) {
         if (message.apiSend == 1) {
-            ToastUtils.show("错误提示 错误码: $errorCode 错误信息: $errorReason")
+            ToastUtils.showShort("错误提示 错误码: $errorCode 错误信息: $errorReason")
         }
         LogUtils.v("错误提示 错误码: $errorCode 错误信息: $errorReason")
     }

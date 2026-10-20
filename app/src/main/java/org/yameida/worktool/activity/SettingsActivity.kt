@@ -8,13 +8,10 @@ import android.view.WindowManager
 import android.widget.CompoundButton
 import androidx.appcompat.app.AppCompatActivity
 import com.blankj.utilcode.util.*
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.StringCallback
-import com.lzy.okgo.model.Response
 import com.qmuiteam.qmui.widget.dialog.QMUIDialog
-import kotlinx.android.synthetic.main.activity_settings.*
-import okhttp3.MediaType
-import okhttp3.RequestBody
+import org.yameida.worktool.databinding.ActivitySettingsBinding
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import org.yameida.worktool.Constant
 import org.yameida.worktool.R
@@ -27,6 +24,44 @@ import java.io.File
  * 设置页
  */
 class SettingsActivity : AppCompatActivity() {
+    private lateinit var binding: ActivitySettingsBinding
+    private val rl_bar get() = binding.rlBar
+    private val iv_back_left get() = binding.ivBackLeft
+    private val rl_reply_strategy get() = binding.rlReplyStrategy
+    private val iv_rec_reply_strategy_ get() = binding.ivRecReplyStrategy
+    private val tv_select_reply_strategy get() = binding.tvSelectReplyStrategy
+    private val rl_rec_orientation get() = binding.rlRecOrientation
+    private val iv_rec_orientation_ get() = binding.ivRecOrientation
+    private val tv_select_orientation get() = binding.tvSelectOrientation
+    private val rl_rec_location get() = binding.rlRecLocation
+    private val iv_rec_location_ get() = binding.ivRecLocation
+    private val tv_select_location get() = binding.tvSelectLocation
+    private val tv_save_location_tip get() = binding.tvSaveLocationTip
+    private val rl_encrypt get() = binding.rlEncrypt
+    private val iv_encrypt get() = binding.ivEncrypt
+    private val sw_encrypt get() = binding.swEncrypt
+    private val rl_rec_resolution get() = binding.rlRecResolution
+    private val iv_rec_resolution_ get() = binding.ivRecResolution
+    private val sw_receive get() = binding.swReceive
+    private val tv_select_resolution get() = binding.tvSelectResolution
+    private val rl_advance get() = binding.rlAdvance
+    private val iv_rec_advance_ get() = binding.ivRecAdvance
+    private val tv_select_advance get() = binding.tvSelectAdvance
+    private val rl_log get() = binding.rlLog
+    private val iv_rec_log_ get() = binding.ivRecLog
+    private val tv_select_log get() = binding.tvSelectLog
+    private val rl_update get() = binding.rlUpdate
+    private val iv_rec_update_ get() = binding.ivRecUpdate
+    private val tv_select_update get() = binding.tvSelectUpdate
+    private val rl_donate get() = binding.rlDonate
+    private val iv_rec_donate_ get() = binding.ivRecDonate
+    private val tv_select_donate get() = binding.tvSelectDonate
+    private val rl_share get() = binding.rlShare
+    private val iv_rec_share_ get() = binding.ivRecShare
+    private val tv_select_share get() = binding.tvSelectShare
+    private val bt_open_main get() = binding.btOpenMain
+    private val bt_open_flow get() = binding.btOpenFlow
+
 
     companion object {
         fun enterActivity(context: Context) {
@@ -41,7 +76,9 @@ class SettingsActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        setContentView(R.layout.activity_settings)
+        binding = ActivitySettingsBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        org.yameida.worktool.utils.WindowInsetsHelper.apply(binding.root)
 
         initView()
         initData()
@@ -131,7 +168,11 @@ class SettingsActivity : AppCompatActivity() {
             logDir.listFiles()?.forEach {
                 if (it.name.endsWith(".snapshot")) it.delete()
             }
-            val listFiles = logDir.listFiles()
+            val listFiles = logDir.listFiles()?.filter { it.isFile }.orEmpty()
+            if (listFiles.isEmpty()) {
+                ToastUtils.showLong("没有可读取的日志文件")
+                return
+            }
             QMUIDialog.CheckableDialogBuilder(this)
                 .setTitle("日志文件分享")
                 .addItems(listFiles.map { it.name.replace("_" + AppUtils.getAppPackageName(), "") }.toTypedArray()) { dialog, which ->
@@ -209,13 +250,10 @@ class SettingsActivity : AppCompatActivity() {
             val json = hashMapOf<String, Any>()
             json["robotId"] = Constant.robotId
             json["replyAll"] = type - 1
-            val requestBody = RequestBody.create(
-                MediaType.parse("application/json;charset=UTF-8"),
-                GsonUtils.toJson(json)
-            )
-            val call = object : StringCallback() {
-                override fun onSuccess(response: Response<String>?) {
-                    if (response != null && JSONObject(response.body()).getInt("code") == 200) {
+            val requestBody = GsonUtils.toJson(json).toRequestBody("application/json; charset=utf-8".toMediaType())
+            val call = object : HttpCallback() {
+                override fun onSuccess(response: HttpResult) {
+                    if (runCatching { JSONObject(response.body()).optInt("code") }.getOrNull() == 200) {
                         Constant.replyStrategy = type
                         ToastUtils.showLong("更新成功")
                     } else {
@@ -223,11 +261,11 @@ class SettingsActivity : AppCompatActivity() {
                     }
                 }
 
-                override fun onError(response: Response<String>?) {
+                override fun onError(response: HttpResult) {
                     ToastUtils.showLong("更新失败，请稍后再试~")
                 }
             }
-            OkGo.post<String>(Constant.getRobotUpdateUrl()).upRequestBody(requestBody).execute(call)
+            HttpTransport.post(Constant.getRobotUpdateUrl(), requestBody, call)
         } catch (e: Exception) {
             throw RuntimeException(e)
         }

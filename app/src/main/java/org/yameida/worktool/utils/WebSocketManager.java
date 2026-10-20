@@ -4,7 +4,7 @@ import android.util.Log;
 
 import com.blankj.utilcode.util.GsonUtils;
 import com.blankj.utilcode.util.LogUtils;
-import com.hjq.toast.ToastUtils;
+import com.blankj.utilcode.util.ToastUtils;
 
 import org.yameida.worktool.Constant;
 import org.yameida.worktool.model.WeworkMessageBean;
@@ -150,7 +150,7 @@ public class WebSocketManager {
             }
             if (!Constant.INSTANCE.getEnableMediaProject()) {
                 if (System.currentTimeMillis() - lastConnectedTime > heartBeatRate * 3000 && !FloatWindowHelper.INSTANCE.isPause()) {
-                    ToastUtils.show("机器人运行中 请勿人工操作手机~");
+                    ToastUtils.showShort("机器人运行中 请勿人工操作手机~");
                 }
             }
         };

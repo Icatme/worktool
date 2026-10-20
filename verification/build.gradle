@@ -1,0 +1,36 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm'
+}
+java {
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
+}
+sourceSets {
+    main {
+        java {
+            srcDir '../app/src/main/java'
+            include 'org/yameida/worktool/protocol/**'
+            include 'org/yameida/worktool/network/**'
+        }
+    }
+    test { java.srcDirs = ['src/test/java', '../tests/jvm'] }
+}
+kotlin {
+    compilerOptions { jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17 }
+    sourceSets.main.kotlin {
+        srcDir '../app/src/main/java'
+        include 'org/yameida/worktool/utils/capture/MediaProjectionHolder.kt'
+        include 'org/yameida/worktool/utils/HttpTransport.kt'
+        include 'org/yameida/worktool/utils/QrDecoder.kt'
+    }
+}
+dependencies {
+    // Compile the core Android/Kotlin boundaries against existing API stubs without installing SDK tools.
+    compileOnly files("${System.getenv('ANDROID_HOME')}/platforms/android-36/android.jar")
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+    implementation 'com.google.zxing:core:3.5.3'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.squareup.okhttp3:mockwebserver:4.12.0'
+}
+test { testLogging { events 'passed', 'failed', 'skipped' } }

@@ -9,13 +9,10 @@ import android.view.WindowManager
 import android.widget.CompoundButton
 import androidx.appcompat.app.AppCompatActivity
 import com.blankj.utilcode.util.*
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.StringCallback
-import com.lzy.okgo.model.Response
 import com.qmuiteam.qmui.widget.dialog.QMUIDialog
-import kotlinx.android.synthetic.main.activity_settings_advance.*
-import okhttp3.MediaType
-import okhttp3.RequestBody
+import org.yameida.worktool.databinding.ActivitySettingsAdvanceBinding
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import org.yameida.worktool.Constant
 import org.yameida.worktool.R
@@ -27,6 +24,41 @@ import java.util.*
  * 高级选项页
  */
 class SettingsAdvanceActivity : AppCompatActivity() {
+    private lateinit var binding: ActivitySettingsAdvanceBinding
+    private val rl_bar get() = binding.rlBar
+    private val iv_back_left get() = binding.ivBackLeft
+    private val rl_full_name get() = binding.rlFullName
+    private val sw_full_name get() = binding.swFullName
+    private val rl_qr_code get() = binding.rlQrCode
+    private val sw_qr_code get() = binding.swQrCode
+    private val rl_auto_publish get() = binding.rlAutoPublish
+    private val sw_auto_publish get() = binding.swAutoPublish
+    private val rl_old_device get() = binding.rlOldDevice
+    private val sw_old_device get() = binding.swOldDevice
+    private val rl_auto_pass_friend_request get() = binding.rlAutoPassFriendRequest
+    private val sw_auto_pass_friend_request get() = binding.swAutoPassFriendRequest
+    private val rl_qa_url get() = binding.rlQaUrl
+    private val tv_select_qa_url get() = binding.tvSelectQaUrl
+    private val rl_rec_orientation get() = binding.rlRecOrientation
+    private val iv_rec_orientation_ get() = binding.ivRecOrientation
+    private val tv_select_orientation get() = binding.tvSelectOrientation
+    private val rl_rec_location get() = binding.rlRecLocation
+    private val iv_rec_location_ get() = binding.ivRecLocation
+    private val tv_select_location get() = binding.tvSelectLocation
+    private val tv_save_location_tip get() = binding.tvSaveLocationTip
+    private val ll_corp_param get() = binding.llCorpParam
+    private val rl_corp_name get() = binding.rlCorpName
+    private val tv_select_corp_name get() = binding.tvSelectCorpName
+    private val rl_corp get() = binding.rlCorp
+    private val rl_agent get() = binding.rlAgent
+    private val rl_schema get() = binding.rlSchema
+    private val rl_username get() = binding.rlUsername
+    private val rl_signature get() = binding.rlSignature
+    private val tv_signature get() = binding.tvSignature
+    private val rl_language get() = binding.rlLanguage
+    private val iv_rec_language_ get() = binding.ivRecLanguage
+    private val tv_select_language get() = binding.tvSelectLanguage
+
 
     companion object {
         fun enterActivity(context: Context) {
@@ -41,7 +73,9 @@ class SettingsAdvanceActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        setContentView(R.layout.activity_settings_advance)
+        binding = ActivitySettingsAdvanceBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        org.yameida.worktool.utils.WindowInsetsHelper.apply(binding.root)
 
         initView()
         initData()
@@ -55,10 +89,8 @@ class SettingsAdvanceActivity : AppCompatActivity() {
             Constant.fullGroupName = isChecked
         })
         sw_qr_code.isChecked = Constant.groupQrCode
-        sw_qr_code.setOnCheckedChangeListener(CompoundButton.OnCheckedChangeListener { buttonView, isChecked ->
-            LogUtils.i("sw_qr_code onCheckedChanged: $isChecked")
-            Constant.groupQrCode = isChecked
-        })
+        sw_qr_code.isEnabled = false
+        sw_qr_code.text = "群二维码读取暂不可用（需迁移用户授权图片选择）"
         sw_auto_publish.isChecked = Constant.autoPublishComment
         sw_auto_publish.setOnCheckedChangeListener(CompoundButton.OnCheckedChangeListener { buttonView, isChecked ->
             LogUtils.i("sw_auto_publish onCheckedChanged: $isChecked")
@@ -127,13 +159,10 @@ class SettingsAdvanceActivity : AppCompatActivity() {
                 json["openCallback"] = 1
                 json["callbackUrl"] = callbackUrl
             }
-            val requestBody = RequestBody.create(
-                MediaType.parse("application/json;charset=UTF-8"),
-                GsonUtils.toJson(json)
-            )
-            val call = object : StringCallback() {
-                override fun onSuccess(response: Response<String>?) {
-                    if (response != null && JSONObject(response.body()).getInt("code") == 200) {
+            val requestBody = GsonUtils.toJson(json).toRequestBody("application/json; charset=utf-8".toMediaType())
+            val call = object : HttpCallback() {
+                override fun onSuccess(response: HttpResult) {
+                    if (runCatching { JSONObject(response.body()).optInt("code") }.getOrNull() == 200) {
                         Constant.qaUrl = callbackUrl
                         ToastUtils.showLong(if (callbackUrl.isEmpty()) "关闭成功" else "更新成功")
                     } else {
@@ -141,11 +170,11 @@ class SettingsAdvanceActivity : AppCompatActivity() {
                     }
                 }
 
-                override fun onError(response: Response<String>?) {
+                override fun onError(response: HttpResult) {
                     ToastUtils.showLong(if (callbackUrl.isEmpty()) "关闭失败，请稍后再试~" else "更新失败，请稍后再试~")
                 }
             }
-            OkGo.post<String>(Constant.getRobotUpdateUrl()).upRequestBody(requestBody).execute(call)
+            HttpTransport.post(Constant.getRobotUpdateUrl(), requestBody, call)
         } catch (e: Exception) {
             throw RuntimeException(e)
         }
@@ -244,7 +273,7 @@ class SettingsAdvanceActivity : AppCompatActivity() {
     }
 
     private fun showSignatureDialog() {
-        val signature = AppUtils.getAppSignaturesMD5().firstOrNull()?.replace(":", "")?.toLowerCase(Locale.ROOT)
+        val signature = AppUtils.getAppSignaturesMD5().firstOrNull()?.replace(":", "")?.lowercase(Locale.ROOT)
         val builder = QMUIDialog.EditTextDialogBuilder(this)
         builder.setTitle("Signature")
             .setDefaultText(signature)

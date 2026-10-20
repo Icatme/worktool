@@ -53,7 +53,7 @@ object ShareUtil {
         val app = Utils.getApp()
         if (auto) {
             val root = WeworkController.weworkService.rootInActiveWindow
-            if (root.packageName != Constant.PACKAGE_NAMES) {
+            if (root?.packageName != Constant.PACKAGE_NAMES) {
                 LogUtils.e("文件分享失败 当前应用不在前台")
                 return false
             }
@@ -62,17 +62,52 @@ object ShareUtil {
                 return false
             }
         }
-        val intent = Intent().apply {
-            action = Intent.ACTION_SEND
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            this.type = type
-            val fileURI = FileProvider.getUriForFile(app, app.packageName + ".fileprovider", file)
-            putExtra(Intent.EXTRA_STREAM, fileURI)
+        if (!file.isFile || file.length() <= 0 || file.length() > 25L * 1024 * 1024) {
+            LogUtils.e("共享文件不可用或超过 25 MiB")
+            return false
         }
-        intent.setPackage(Constant.PACKAGE_NAMES)
-        app.startActivity(Intent.createChooser(intent, "WorkTool文件分享").apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK })
-        LogUtils.e("分享了 $type ${file.absolutePath}")
-        return true
+        // Only this bounded snapshot is exposed by FileProvider, never the original directory.
+        val shareRoot = File(app.cacheDir, "share").apply { mkdirs() }
+        val snapshotDir = File(shareRoot, java.util.UUID.randomUUID().toString()).apply { mkdirs() }
+        val shared = File(snapshotDir, file.name)
+        try {
+            file.inputStream().use { input ->
+                shared.outputStream().use { output ->
+                    val buffer = ByteArray(8192)
+                    var total = 0L
+                    while (true) {
+                        val count = input.read(buffer)
+                        if (count == -1) break
+                        total += count
+                        require(total <= 25L * 1024 * 1024) { "Shared file grew beyond limit" }
+                        output.write(buffer, 0, count)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            shared.delete()
+            snapshotDir.delete()
+            LogUtils.e("无法准备共享文件")
+            return false
+        }
+        return try {
+            val intent = Intent().apply {
+                action = Intent.ACTION_SEND
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
+                this.type = type
+                val fileURI = FileProvider.getUriForFile(app, app.packageName + ".fileprovider", shared, file.name)
+                putExtra(Intent.EXTRA_STREAM, fileURI)
+                clipData = android.content.ClipData.newRawUri("shared file", fileURI)
+            }
+            intent.setPackage(Constant.PACKAGE_NAMES)
+            app.startActivity(Intent.createChooser(intent, "WorkTool文件分享").apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION })
+            true
+        } catch (e: RuntimeException) {
+            shared.delete()
+            snapshotDir.delete()
+            LogUtils.e("系统未允许打开文件分享，请返回应用重试")
+            false
+        }
     }
 
 }

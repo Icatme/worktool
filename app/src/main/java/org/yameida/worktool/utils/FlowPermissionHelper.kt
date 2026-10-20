@@ -85,7 +85,8 @@ object FlowPermissionHelper {
         try {
             context.contentResolver.query(uri, null, selection, selectionArgs, null)?.use {
                 if (it.moveToFirst()) {
-                    state = it.getInt(it.getColumnIndex("currentstate"))
+                    val column = it.getColumnIndex("currentstate")
+                    if (column >= 0) state = it.getInt(column)
                 }
             }
         } catch (e: Exception) {
