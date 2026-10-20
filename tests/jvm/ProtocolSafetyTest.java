@@ -78,9 +78,10 @@ public final class ProtocolSafetyTest {
         for (Thread thread : threads) thread.join();
         check(admitted.get() == 1, "concurrent redelivery admitted once");
 
-        Path fixture = Files.createTempDirectory(Path.of(args[0]), "export-test-");
+        Path fixture = Files.createTempDirectory(java.nio.file.Paths.get(args[0]), "export-test-");
         File exports = Files.createDirectory(fixture.resolve("exports")).toFile();
-        Files.writeString(exports.toPath().resolve("reviewed.txt"), "redacted diagnostic");
+        Files.write(exports.toPath().resolve("reviewed.txt"),
+                "redacted diagnostic".getBytes(java.nio.charset.StandardCharsets.UTF_8));
         check(new String(ExportPolicy.readReviewedFile(exports, "reviewed.txt")).equals("redacted diagnostic"), "reviewed export snapshot");
         rejected(exports, null);
         rejected(exports, "");

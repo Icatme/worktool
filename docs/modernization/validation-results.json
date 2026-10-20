@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-20",
+  "branch": "feat/android-36-modernization",
+  "buildLog": "android-full-7.txt",
+  "buildResult": "BUILD SUCCESSFUL",
+  "apks": [
+    {
+      "variant": "debug",
+      "file": "app/build/outputs/apk/debug/app-debug-unsigned.apk",
+      "bytes": 9618258,
+      "sha256": "1c73c535b854931e38892e356ea639dbc7156acad2be1c44909c53929939725a",
+      "nativeLibraries": [],
+      "signed": false,
+      "zipalign16KB": "passed",
+      "apksignerVerify": "unsigned: missing signature (expected)"
+    },
+    {
+      "variant": "release",
+      "file": "app/build/outputs/apk/release/app-release-unsigned.apk",
+      "bytes": 3720751,
+      "sha256": "f52923f243f70410cc03b6c656c41c46dae58d3b76561a6800a2a476526f19c8",
+      "nativeLibraries": [],
+      "signed": false,
+      "zipalign16KB": "passed",
+      "apksignerVerify": "unsigned: missing signature (expected)"
+    }
+  ],
+  "lint": {
+    "app": {
+      "Warning": 247
+    },
+    "baselibrary": {
+      "Warning": 10
+    },
+    "floatwindow": {
+      "Warning": 31
+    }
+  },
+  "tests": {
+    "app": [
+      {
+        "name": "HttpEngineTest",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "ProtocolPolicyTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "verification": [
+      {
+        "name": "HttpEngineTest",
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "ProtocolPolicyTest",
+        "tests": "1",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ]
+  },
+  "sourceContractChecks": 26,
+  "testLogs": {
+    "app": "android-full-7.txt",
+    "verification": "android-full-4.txt"
+  }
+}

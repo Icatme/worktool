@@ -35,7 +35,7 @@ object LogUtilsInit {
     fun init() {
         val prefix = try {
             AppUtils.getAppSignaturesMD5().firstOrNull()?.replace(":", "")
-                ?.substring(0, 2)?.toLowerCase(Locale.ROOT)
+                ?.substring(0, 2)?.lowercase(Locale.ROOT)
         } catch (e: Exception) {
             null
         }

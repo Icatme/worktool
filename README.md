@@ -1,3 +1,13 @@
+## Icatme 内部应用现代化分支
+
+本 fork 的迁移范围、分批验收与实际结果见
+[整体方案](docs/modernization/PLAN.md)、
+[已实施变更](docs/modernization/IMPLEMENTED.md)、
+[验证记录](docs/modernization/VALIDATION.md)、
+[设备验收手册](docs/modernization/ACCEPTANCE.md)。
+当前为草稿开发状态，已通过本地未签名构建、单元测试和 lint；Android 14/15/16 设备验收尚未执行。
+下方原项目/商业版介绍不代表此源码或本 fork 的兼容承诺。
+
 ## 项目状态说明
 
 ⚠️ 当前 GitHub 仓库提供的是开源历史版本，仅用于学习和二次开发参考。

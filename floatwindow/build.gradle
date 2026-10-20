@@ -1,20 +1,23 @@
 apply plugin: 'com.android.library'
 apply plugin: 'kotlin-android'
-apply plugin: 'kotlin-android-extensions'
 
 android {
-    compileSdkVersion 30
+    namespace 'org.yameida.floatwindow'
+    compileSdk 36
+    buildToolsVersion '35.0.0'
+    buildFeatures { viewBinding true; buildConfig true }
 
     defaultConfig {
         minSdkVersion 24
-        targetSdkVersion 30
+        targetSdkVersion 36
         versionCode 1
         versionName "1.0"
     }
 
     buildTypes {
         release {
-            minifyEnabled true
+            // App-level R8 sees cross-module callers; shrinking this AAR first deletes public APIs.
+            minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
@@ -28,11 +31,11 @@ android {
 }
 
 dependencies {
-    api "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    api 'androidx.core:core-ktx:1.3.2'
-    api 'androidx.appcompat:appcompat:1.3.1'
-    api 'com.google.android.material:material:1.4.0'
+    api 'org.jetbrains.kotlin:kotlin-stdlib:2.3.10'
+    api 'androidx.core:core-ktx:1.15.0'
+    api 'androidx.appcompat:appcompat:1.7.1'
+    api 'com.google.android.material:material:1.12.0'
 
     //工具集
-    api 'com.blankj:utilcodex:1.31.0'
+    api 'com.blankj:utilcodex:1.31.1'
 }

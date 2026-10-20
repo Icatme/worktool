@@ -5,7 +5,7 @@ import android.os.Message
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.text.isDigitsOnly
 import com.blankj.utilcode.util.*
-import com.hjq.toast.ToastUtils
+import com.blankj.utilcode.util.ToastUtils
 import org.yameida.worktool.Constant
 import org.yameida.worktool.Demo
 import org.yameida.worktool.MyApplication
@@ -80,14 +80,14 @@ object WeworkLoopImpl {
     private fun checkRealName(): Boolean {
         if (!SPUtils.getInstance("myInfo").getBoolean("realName", true)) {
             LogUtils.e("账号实名前请先关闭WorkTool主功能！")
-            ToastUtils.show("账号实名前请先关闭WorkTool主功能！")
+            ToastUtils.showShort("账号实名前请先关闭WorkTool主功能！")
             MyApplication.launchIntent()
             sleep(5000)
             return false
         }
         if (SPUtils.getInstance().getBoolean("risk", false)) {
             LogUtils.e("环境监测异常，请勿使用本应用！")
-            ToastUtils.show("环境监测异常，请勿使用本应用！")
+            ToastUtils.showShort("环境监测异常，请勿使用本应用！")
             MyApplication.launchIntent()
             sleep(5000)
             return false
@@ -254,7 +254,7 @@ object WeworkLoopImpl {
                         val imageMessageList = messageList.filter { it.textType == WeworkMessageBean.TEXT_TYPE_IMAGE }.reversed()
                         LogUtils.v("lastImage: ${imageSet.first().size}")
                         SPUtils.getInstance("lastImage").put(titleList.joinToString(), imageSet.first().size)
-                        imageSet.reversed().forEachIndexed { index, bytes ->
+                        imageSet.toList().asReversed().forEachIndexed { index, bytes ->
                             if (imageMessageList.size > index) {
                                 val message = imageMessageList[index]
                             }
@@ -269,7 +269,7 @@ object WeworkLoopImpl {
                     log("createSet: ${MultiFileObserver.createSet.joinToString()}\nsaveSet: ${MultiFileObserver.saveSet.joinToString()}")
                     if (MultiFileObserver.saveSet.isNotEmpty()) {
                         val imageMessageList = messageList.filter { it.textType == WeworkMessageBean.TEXT_TYPE_IMAGE }.reversed()
-                        MultiFileObserver.saveSet.reversed().forEachIndexed { index, targetPath ->
+                        MultiFileObserver.saveSet.toList().asReversed().forEachIndexed { index, targetPath ->
                             if (imageMessageList.size > index) {
                                 val message = imageMessageList[index]
                                 val save2Album = ImageUtils.save2Album(ImageUtils.getBitmap(targetPath), Bitmap.CompressFormat.PNG, true)

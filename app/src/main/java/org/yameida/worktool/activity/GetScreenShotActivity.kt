@@ -1,138 +1,54 @@
 package org.yameida.worktool.activity
 
 import android.app.Activity
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.graphics.Color
-import android.graphics.PixelFormat
-import android.hardware.display.DisplayManager
-import android.media.Image
-import android.media.ImageReader
+import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
-import android.os.SystemClock
 import androidx.appcompat.app.AppCompatActivity
-import com.blankj.utilcode.constant.PermissionConstants
-import com.blankj.utilcode.util.*
-import org.yameida.worktool.utils.capture.AndroidUtils
+import androidx.core.content.ContextCompat
+import com.blankj.utilcode.util.ToastUtils
+import org.yameida.worktool.service.PlayNotifyService
 import org.yameida.worktool.utils.capture.MediaProjectionHolder
 
-import android.util.DisplayMetrics
-
-import android.view.WindowManager
-import org.yameida.worktool.utils.startServiceSafe
-import org.yameida.worktool.service.PlayNotifyService
-import org.yameida.worktool.service.fastStartActivity
-import java.lang.Exception
-
-
-/**
- * Created by Gallon on 2019/7/30.
- */
+/** Open only from an explicit user action in the visible WorkTool activity. */
 class GetScreenShotActivity : AppCompatActivity() {
-    private var mediaProjectionManager: MediaProjectionManager? = null
-    private var hideFloatWindow = false
-    private val handler = Handler(Looper.getMainLooper())
-
     companion object {
-        val HIDE_FLOAT_WINDOW = "hideFloatWindow"
-
-        fun startCapture(): Bitmap? {
-            if (MediaProjectionHolder.mMediaProjection == null) {
-                LogUtils.e("截图失败 mediaProjection未初始化")
-                fastStartActivity(Utils.getApp(), GetScreenShotActivity::class.java)
-                return null
-            }
-            val imageReader = ImageReader.newInstance(ScreenUtils.getScreenWidth(), ScreenUtils.getScreenHeight(), PixelFormat.RGBA_8888, 1)
-            val virtualDisplay = MediaProjectionHolder.mMediaProjection?.createVirtualDisplay("ScreenShout",
-                    ScreenUtils.getScreenWidth(), ScreenUtils.getScreenHeight(), ScreenUtils.getScreenDensityDpi(),
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    imageReader.surface, null, null)
-
-            var image: Image? = null
-            var tryCount = 0
-            while (tryCount < 10 && image == null) {
-                SystemClock.sleep(250)
-                image = imageReader.acquireNextImage()
-            }
-            if (image == null) {
-                LogUtils.i("GetScreenShotActivity", "image is null.")
-                return null
-            }
-            val width = image.width
-            val height = image.height
-            val planes = image.planes
-            val buffer = planes[0].buffer
-            val pixelStride = planes[0].pixelStride
-            val rowStride = planes[0].rowStride
-            val rowPadding = rowStride - pixelStride * width
-            var bitmap = Bitmap.createBitmap(width + rowPadding / pixelStride, height, Bitmap.Config.ARGB_8888)
-            bitmap.copyPixelsFromBuffer(buffer)
-            bitmap = Bitmap.createBitmap(bitmap, 0, 0, width, height)
-            image.close()
-            imageReader.close()
-            virtualDisplay?.release()
-            return bitmap
-        }
+        fun startCapture(): Bitmap? = MediaProjectionHolder.capture()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        LogUtils.i("onCreate")
-        window.statusBarColor = Color.TRANSPARENT
-        mediaProjectionManager = Utils.getApp().getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-        hideFloatWindow = intent.getBooleanExtra(HIDE_FLOAT_WINDOW, false)
-
-        PermissionUtils.permission(PermissionConstants.STORAGE)
-                .callback(object : PermissionUtils.SimpleCallback {
-                    override fun onGranted() {
-                        LogUtils.d("start record")
-                        mediaProjectionManager?.apply {
-                            val intent = this.createScreenCaptureIntent()
-                            if (packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY) != null) {
-                                startActivityForResult(intent, 0)
-                            } else {
-                                ToastUtils.showShort("抱歉，你的手机暂不支持录屏")
-                            }
-                        }
-                    }
-
-                    override fun onDenied() {
-                        ToastUtils.showShort("请允许申请的权限，否则无法录屏")
-                        finish()
-                    }
-                })
-                .request()
+        if (MediaProjectionHolder.mMediaProjection != null) {
+            finish()
+            return
+        }
+        // A restored consent activity already has an outstanding system request.
+        if (savedInstanceState != null) return
+        val manager = getSystemService(MediaProjectionManager::class.java)
+        // Existing accessibility coordinates refer to the full display. The system still asks consent.
+        val consent = if (Build.VERSION.SDK_INT >= 34) {
+            manager.createScreenCaptureIntent(MediaProjectionConfig.createConfigForDefaultDisplay())
+        } else manager.createScreenCaptureIntent()
+        try { startActivityForResult(consent, 100) }
+        catch (e: RuntimeException) {
+            ToastUtils.showShort("无法打开系统截图授权")
+            finish()
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        LogUtils.i("onActivityResult")
-
-        if (resultCode == Activity.RESULT_OK && data != null) {
-            LogUtils.e("mediaProjectionManager: $mediaProjectionManager")
-            LogUtils.e("resultCode: $resultCode")
-            LogUtils.e("data: $data")
+        if (requestCode == 100 && resultCode == Activity.RESULT_OK && data != null) {
             try {
-                val mWindowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-                val metrics = DisplayMetrics()
-                mWindowManager.defaultDisplay.getMetrics(metrics)
-            } catch (e: Exception) {
-                LogUtils.e("MediaProjection error")
+                ContextCompat.startForegroundService(this, Intent(this, PlayNotifyService::class.java)
+                    .putExtra("code", resultCode).putExtra("data", data))
+            } catch (e: RuntimeException) {
+                ToastUtils.showShort("截图服务未启动，请返回应用重新授权")
             }
-            sendBroadcast(Intent())
-            val service = Intent(this, PlayNotifyService::class.java)
-            service.putExtra("setMediaProject", true)
-            service.putExtra("code", resultCode)
-            service.putExtra("data", data)
-            startServiceSafe(service)
         }
         finish()
     }
-
-
 }

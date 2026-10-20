@@ -14,9 +14,9 @@ import android.widget.FrameLayout
 import com.blankj.utilcode.util.*
 
 import org.yameida.floatwindow.listener.FloatWindowListener
-import kotlinx.android.synthetic.main.layout_menu_left.view.*
-import kotlinx.android.synthetic.main.layout_menu_logo.view.*
-import kotlinx.android.synthetic.main.layout_menu_right.view.*
+import org.yameida.floatwindow.databinding.LayoutMenuLeftBinding
+import org.yameida.floatwindow.databinding.LayoutMenuRightBinding
+import org.yameida.floatwindow.databinding.LayoutMenuLogoBinding
 import org.yameida.floatwindow.listener.OnClickListener
 
 /**
@@ -24,6 +24,9 @@ import org.yameida.floatwindow.listener.OnClickListener
  */
 
 class DefaultFloatService : BaseFloatWindow(), View.OnClickListener {
+    private lateinit var leftBinding: LayoutMenuLeftBinding
+    private lateinit var rightBinding: LayoutMenuRightBinding
+    private lateinit var logoBinding: LayoutMenuLogoBinding
 
 //    private var currentStatus = RecordStatusManager.PLAY_STATUS_STOP
     private var active = false
@@ -49,15 +52,20 @@ class DefaultFloatService : BaseFloatWindow(), View.OnClickListener {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val mChannel = NotificationChannel(CHANNEL_ID_STRING, "float", NotificationManager.IMPORTANCE_HIGH)
             manager.createNotificationChannel(mChannel)
-            val notification = Notification.Builder(context, CHANNEL_ID_STRING).build()
-            startForeground(1, notification)
+            val notification = Notification.Builder(context, CHANNEL_ID_STRING)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentTitle("WorkTool 悬浮控制")
+                .setContentText("用于暂停和停止已授权的辅助操作").setOngoing(true).build()
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else startForeground(1, notification)
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         LogUtils.d(TAG, "onStartCommand: ${intent?.data}")
         show()
-        return super.onStartCommand(intent, flags, startId)
+        return START_NOT_STICKY
     }
 
     override fun show() {
@@ -75,62 +83,65 @@ class DefaultFloatService : BaseFloatWindow(), View.OnClickListener {
     override fun onClick(v: View) {
         LogUtils.v(TAG, "float onClick: ")
         openMenu()
-        if (v == leftView.fl_window_background_left || v == rightView.fl_window_background_right) {
+        if (v == leftBinding.flWindowBackgroundLeft || v == rightBinding.flWindowBackgroundRight) {
             onClickListener?.onClick(v,-1)
         }
-        if (v == leftView.iv_logo_left || v == rightView.iv_logo_right || v == leftView.iv_logo_left2 || v == rightView.iv_logo_right2) {
+        if (v == leftBinding.ivLogoLeft || v == rightBinding.ivLogoRight || v == leftBinding.ivLogoLeft2 || v == rightBinding.ivLogoRight2) {
             onClickListener?.onClick(v, 0)
         }
-        if (v == leftView.iv_start_left || v == rightView.iv_start_right) {
+        if (v == leftBinding.ivStartLeft || v == rightBinding.ivStartRight) {
             onClickListener?.onClick(v,1)
         }
-        if (v == leftView.iv_shot_left || v == rightView.iv_shot_right) {
+        if (v == leftBinding.ivShotLeft || v == rightBinding.ivShotRight) {
             onClickListener?.onClick(v,2)
         }
-        if (v == leftView.iv_back_left || v == rightView.iv_back_right) {
+        if (v == leftBinding.ivBackLeft || v == rightBinding.ivBackRight) {
             onClickListener?.onClick(v,3)
         }
-        if (v == leftView.iv_settings_left || v == rightView.iv_settings_right) {
+        if (v == leftBinding.ivSettingsLeft || v == rightBinding.ivSettingsRight) {
             onClickListener?.onClick(v,4)
         }
-        if (v == leftView.iv_resume_pause_left || v == rightView.iv_resume_pause_right) {
+        if (v == leftBinding.ivResumePauseLeft || v == rightBinding.ivResumePauseRight) {
             onClickListener?.onClick(v,5)
         }
-        if (v == leftView.iv_stop_left || v == rightView.iv_stop_right) {
+        if (v == leftBinding.ivStopLeft || v == rightBinding.ivStopRight) {
             onClickListener?.onClick(v,6)
         }
     }
 
     override fun getLeftView(inflater: LayoutInflater): View {
-        leftView = inflater.inflate(R.layout.layout_menu_left, null)
-        leftView.iv_logo_left.setOnClickListener(this)
-        leftView.iv_logo_left2.setOnClickListener(this)
-        leftView.iv_start_left.setOnClickListener(this)
-        leftView.iv_shot_left.setOnClickListener(this)
-        leftView.iv_back_left.setOnClickListener(this)
-        leftView.iv_resume_pause_left.setOnClickListener(this)
-        leftView.iv_stop_left.setOnClickListener(this)
-        leftView.iv_settings_left.setOnClickListener(this)
-        leftView.fl_window_background_left.setOnClickListener(this)
+        leftBinding = LayoutMenuLeftBinding.inflate(inflater)
+        leftView = leftBinding.root
+        leftBinding.ivLogoLeft.setOnClickListener(this)
+        leftBinding.ivLogoLeft2.setOnClickListener(this)
+        leftBinding.ivStartLeft.setOnClickListener(this)
+        leftBinding.ivShotLeft.setOnClickListener(this)
+        leftBinding.ivBackLeft.setOnClickListener(this)
+        leftBinding.ivResumePauseLeft.setOnClickListener(this)
+        leftBinding.ivStopLeft.setOnClickListener(this)
+        leftBinding.ivSettingsLeft.setOnClickListener(this)
+        leftBinding.flWindowBackgroundLeft.setOnClickListener(this)
         return leftView
     }
 
     override fun getRightView(inflater: LayoutInflater): View {
-        rightView = inflater.inflate(R.layout.layout_menu_right, null)
-        rightView.iv_logo_right.setOnClickListener(this)
-        rightView.iv_logo_right2.setOnClickListener(this)
-        rightView.iv_start_right.setOnClickListener(this)
-        rightView.iv_shot_right.setOnClickListener(this)
-        rightView.iv_back_right.setOnClickListener(this)
-        rightView.iv_resume_pause_right.setOnClickListener(this)
-        rightView.iv_stop_right.setOnClickListener(this)
-        rightView.iv_settings_right.setOnClickListener(this)
-        rightView.fl_window_background_right.setOnClickListener(this)
+        rightBinding = LayoutMenuRightBinding.inflate(inflater)
+        rightView = rightBinding.root
+        rightBinding.ivLogoRight.setOnClickListener(this)
+        rightBinding.ivLogoRight2.setOnClickListener(this)
+        rightBinding.ivStartRight.setOnClickListener(this)
+        rightBinding.ivShotRight.setOnClickListener(this)
+        rightBinding.ivBackRight.setOnClickListener(this)
+        rightBinding.ivResumePauseRight.setOnClickListener(this)
+        rightBinding.ivStopRight.setOnClickListener(this)
+        rightBinding.ivSettingsRight.setOnClickListener(this)
+        rightBinding.flWindowBackgroundRight.setOnClickListener(this)
         return rightView
     }
 
     override fun getLogoView(inflater: LayoutInflater): View {
-        return inflater.inflate(R.layout.layout_menu_logo, null)
+        logoBinding = LayoutMenuLogoBinding.inflate(inflater)
+        return logoBinding.root
     }
 
     override fun resetLogoViewSize(hintLocation: Int, logoView: View) {
@@ -139,7 +150,7 @@ class DefaultFloatService : BaseFloatWindow(), View.OnClickListener {
         logoView.scaleX = 1f
         logoView.scaleY = 1f
         logoView.alpha = 1f
-        logoView.tv_float_time.textSize = 10f
+        logoBinding.tvFloatTime.textSize = 10f
     }
 
     override fun dragLogoViewOffset(logoView: View, isDrag: Boolean, isResetPosition: Boolean, offset: Float) {
@@ -158,37 +169,37 @@ class DefaultFloatService : BaseFloatWindow(), View.OnClickListener {
     public override fun shrinkLeftLogoView(smallView: View) {
         smallView.translationX = (-smallView.width / 4).toFloat()
         smallView.alpha = 0.35f
-        logoView.tv_float_time.textSize = 7f
+        logoBinding.tvFloatTime.textSize = 7f
     }
 
     public override fun shrinkRightLogoView(smallView: View) {
         smallView.translationX = (smallView.width / 4).toFloat()
         smallView.alpha = 0.35f
-        logoView.tv_float_time.textSize = 7f
+        logoBinding.tvFloatTime.textSize = 7f
     }
 
     public override fun leftViewOpened(leftView: View) {
-        val layoutParams = leftView.fl_window_measure_left.layoutParams as FrameLayout.LayoutParams
-        leftView.fl_window_measure_left.measure(0, 0)
+        val layoutParams = leftBinding.flWindowMeasureLeft.layoutParams as FrameLayout.LayoutParams
+        leftBinding.flWindowMeasureLeft.measure(0, 0)
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            layoutParams.topMargin = params.y - (leftView.fl_window_measure_left.measuredHeight / 2 - leftView.iv_logo_left.measuredHeight / 2)
+            layoutParams.topMargin = params.y - (leftBinding.flWindowMeasureLeft.measuredHeight / 2 - leftBinding.ivLogoLeft.measuredHeight / 2)
         } else {
-            layoutParams.topMargin = params.y - BarUtils.getStatusBarHeight() - (leftView.fl_window_measure_left.measuredHeight / 2 - leftView.iv_logo_left.measuredHeight / 2)
+            layoutParams.topMargin = params.y - BarUtils.getStatusBarHeight() - (leftBinding.flWindowMeasureLeft.measuredHeight / 2 - leftBinding.ivLogoLeft.measuredHeight / 2)
         }
-        leftView.fl_window_measure_left.layoutParams = layoutParams
+        leftBinding.flWindowMeasureLeft.layoutParams = layoutParams
 //        ToastUtils.showShort("左边的菜单被打开了")
     }
 
     public override fun rightViewOpened(rightView: View) {
-        val layoutParams = rightView.fl_window_measure_right.layoutParams as FrameLayout.LayoutParams
-        rightView.fl_window_measure_right.measure(0, 0)
+        val layoutParams = rightBinding.flWindowMeasureRight.layoutParams as FrameLayout.LayoutParams
+        rightBinding.flWindowMeasureRight.measure(0, 0)
         if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
-            layoutParams.topMargin = params.y - (rightView.fl_window_measure_right.measuredHeight / 2 - rightView.iv_logo_right.measuredHeight / 2)
+            layoutParams.topMargin = params.y - (rightBinding.flWindowMeasureRight.measuredHeight / 2 - rightBinding.ivLogoRight.measuredHeight / 2)
         } else {
-            layoutParams.topMargin = params.y - BarUtils.getStatusBarHeight() - (rightView.fl_window_measure_right.measuredHeight / 2 - rightView.iv_logo_right.measuredHeight / 2)
+            layoutParams.topMargin = params.y - BarUtils.getStatusBarHeight() - (rightBinding.flWindowMeasureRight.measuredHeight / 2 - rightBinding.ivLogoRight.measuredHeight / 2)
         }
-        layoutParams.leftMargin = ScreenUtils.getScreenWidth() - rightView.fl_window_measure_right.measuredWidth
-        rightView.fl_window_measure_right.layoutParams = layoutParams
+        layoutParams.leftMargin = ScreenUtils.getScreenWidth() - rightBinding.flWindowMeasureRight.measuredWidth
+        rightBinding.flWindowMeasureRight.layoutParams = layoutParams
 //        ToastUtils.showShort("右边的菜单被打开了")
     }
 

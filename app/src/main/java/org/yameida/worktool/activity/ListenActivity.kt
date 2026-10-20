@@ -1,13 +1,16 @@
 package org.yameida.worktool.activity
 
+import androidx.core.content.ContextCompat
+import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.provider.Settings
 import android.view.WindowManager
 import android.widget.CompoundButton
 import androidx.appcompat.app.AppCompatActivity
 import com.blankj.utilcode.util.*
-import com.umeng.analytics.MobclickAgent
-import kotlinx.android.synthetic.main.activity_listen.*
+import org.yameida.worktool.databinding.ActivityListenBinding
 import org.yameida.worktool.*
 import android.content.*
 import android.os.IBinder
@@ -25,6 +28,17 @@ import org.yameida.worktool.utils.envcheck.CheckRoot
 
 
 class ListenActivity : AppCompatActivity() {
+    private lateinit var binding: ActivityListenBinding
+    private val rl_bar get() = binding.rlBar
+    private val iv_settings get() = binding.ivSettings
+    private val tv_host get() = binding.tvHost
+    private val tv_version get() = binding.tvVersion
+    private val tv_work_version get() = binding.tvWorkVersion
+    private val sw_accessibility get() = binding.swAccessibility
+    private val sw_overlay get() = binding.swOverlay
+    private val et_channel get() = binding.etChannel
+    private val bt_save get() = binding.btSave
+
 
     var riskRetry: Int = 0
 
@@ -45,15 +59,17 @@ class ListenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        setContentView(R.layout.activity_listen)
+        binding = ActivityListenBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        org.yameida.worktool.utils.WindowInsetsHelper.apply(binding.root)
 
         initView()
         initAccessibility()
         initOverlays()
         initData()
         initNotification()
-        PermissionUtils.permission(PermissionConstants.STORAGE).request()
-        registerReceiver(openWsReceiver, IntentFilter(Constant.WEWORK_NOTIFY))
+        ContextCompat.registerReceiver(this, openWsReceiver, IntentFilter(Constant.WEWORK_NOTIFY),
+            ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
     override fun onDestroy() {
@@ -80,11 +96,10 @@ class ListenActivity : AppCompatActivity() {
             val channel = et_channel.text.toString().trim()
             Constant.robotId = channel
             ToastUtils.showLong("保存成功")
-            sendBroadcast(Intent(Constant.WEWORK_NOTIFY).apply {
+            sendBroadcast(Intent(Constant.WEWORK_NOTIFY).setPackage(packageName).apply {
                 putExtra("type", "modify_channel")
             })
             HttpUtil.getMyConfig(toast = false)
-            MobclickAgent.onProfileSignIn(channel)
         }
         tv_host.text = Constant.host
         tv_host.setOnClickListener {
@@ -185,29 +200,33 @@ class ListenActivity : AppCompatActivity() {
     }
 
     private fun initData() {
-        HttpUtil.checkUpdate()
         HttpUtil.getMyConfig(toast = false)
         CacheUtil.autoDelete()
     }
 
     private fun initNotification() {
-        if (!Constant.enableMediaProject) {
-            return
-        }
-        application.bindService(Intent(application, PlayNotifyService::class.java), object : ServiceConnection {
-            override fun onServiceDisconnected(name: ComponentName) {
-                LogUtils.d("onServiceDisconnected")
+        binding.btCapture.setOnClickListener {
+            if (MediaProjectionHolder.mMediaProjection != null) {
+                stopService(Intent(this, PlayNotifyService::class.java))
+            } else {
+                MaterialAlertDialogBuilder(this, R.style.Theme_MaterialComponents_DayNight_Dialog)
+                    .setTitle("授权屏幕截图")
+                    .setMessage("本次会话可连续截图。屏幕可能包含敏感信息；可随时从系统或通知停止。默认不上传图片。")
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("继续") { _, _ ->
+                        if (Build.VERSION.SDK_INT >= 33 &&
+                            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 101)
+                        } else startActivity(Intent(this, GetScreenShotActivity::class.java))
+                    }.show()
             }
-            override fun onServiceConnected(name: ComponentName, iBinder: IBinder) {
-                LogUtils.d("onServiceConnected")
-            }
-        }, Context.BIND_AUTO_CREATE)
-        //开启屏幕录制权限
-        if (MediaProjectionHolder.mMediaProjection == null) {
-            bt_save.postDelayed({
-                fastStartActivity(this, GetScreenShotActivity::class.java)
-            }, 1000)
         }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        // Notification denial does not grant or deny screen capture; Android asks separately.
+        if (requestCode == 101) startActivity(Intent(this, GetScreenShotActivity::class.java))
     }
 
     private fun showSelectHostDialog() {

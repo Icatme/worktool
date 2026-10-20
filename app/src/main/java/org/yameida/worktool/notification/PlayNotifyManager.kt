@@ -21,7 +21,7 @@ object PlayNotifyManager {
     var isShow = false
 
     fun show() {
-        context.startServiceSafe(Intent(context, PlayNotifyService::class.java))
+        // Projection services are started only after visible user consent.
     }
 
     private var collapse: Method? = null

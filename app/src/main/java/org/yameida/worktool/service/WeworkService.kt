@@ -4,8 +4,8 @@ import android.accessibilityservice.AccessibilityService
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import androidx.core.content.ContextCompat
 import android.content.IntentFilter
-import android.os.FileObserver
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.blankj.utilcode.util.*
@@ -14,7 +14,6 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.yameida.worktool.Constant
 import org.yameida.worktool.Demo
-import org.yameida.worktool.observer.MultiFileObserver
 import org.yameida.worktool.utils.*
 import java.lang.Exception
 import kotlin.concurrent.thread
@@ -31,8 +30,14 @@ class WeworkService : AccessibilityService() {
     var currentClass = ""
     var currentClassPackage = ""
 
-    companion object {
-        private var mFileObserver: FileObserver? = null
+    private var receiverRegistered = false
+    private val channelReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.getStringExtra("type") == "modify_channel") {
+                webSocketManager.close(1000, "modify_channel")
+                initWebSocket()
+            }
+        }
     }
 
     override fun onServiceConnected() {
@@ -46,20 +51,16 @@ class WeworkService : AccessibilityService() {
         //初始化消息处理器
         MyLooper.init()
         //初始化图片接收
-        initObserver()
+        // Cross-app Android/data image-cache observation is unsupported on modern Android.
         //开发者可以在这里添加测试代码 启动时调用一次
         thread { Demo.test(AppUtils.isAppDebug()) }
 
         //监听是否修改链接号并重新长连接
-        registerReceiver(object : BroadcastReceiver() {
-            override fun onReceive(context: Context, intent: Intent) {
-                if (intent.getStringExtra("type") == "modify_channel") {
-                    LogUtils.e("更新channel")
-                    webSocketManager.close(1000, "modify_channel")
-                    initWebSocket()
-                }
-            }
-        }, IntentFilter(Constant.WEWORK_NOTIFY))
+        if (!receiverRegistered) {
+            ContextCompat.registerReceiver(this, channelReceiver, IntentFilter(Constant.WEWORK_NOTIFY),
+                ContextCompat.RECEIVER_NOT_EXPORTED)
+            receiverRegistered = true
+        }
     }
 
     private fun initWebSocket() {
@@ -69,25 +70,6 @@ class WeworkService : AccessibilityService() {
         webSocketManager = WebSocketManager(url, listener)
     }
 
-    private fun initObserver() {
-        if (!Constant.pushImage) return
-        try {
-            LogUtils.d("initObserver... mFileObserver is null ? ${mFileObserver == null}")
-            if (mFileObserver == null) {
-                mFileObserver =
-                    MultiFileObserver("/storage/emulated/0/Android/data/com.tencent.wework/files/imagecache/imagemsg2");
-                mFileObserver?.startWatching()
-                log("startWatching...")
-            } else {
-                mFileObserver?.stopWatching()
-                mFileObserver?.startWatching()
-                log("restartWatching...")
-            }
-        } catch (e: Exception) {
-            LogUtils.e(e)
-            error("initObserver startWatching error!: ${e.message}")
-        }
-    }
 
     /**
      * TYPE_WINDOW_CONTENT_CHANGED 内容变化
@@ -115,7 +97,11 @@ class WeworkService : AccessibilityService() {
         WeworkController.enableLoopRunning = false
         //隐藏软键盘模式
         softKeyboardController.showMode = SHOW_MODE_AUTO
-        webSocketManager.close(1000, "service Destroy")
+        if (receiverRegistered) {
+            unregisterReceiver(channelReceiver)
+            receiverRegistered = false
+        }
+        if (::webSocketManager.isInitialized) webSocketManager.close(1000, "service Destroy")
     }
 
     inner class EchoWebSocketListener : WebSocketListener() {
@@ -136,7 +122,7 @@ class WeworkService : AccessibilityService() {
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
-            LogUtils.i("onMessage: ${ if (text.length > 1000) (text.substring(0, 1000) + "...") else text }")
+            LogUtils.i("Received websocket frame: ${text.length} characters")
             try {
                 MyLooper.onMessage(webSocket, text)
             } catch (e: Exception) {
@@ -166,7 +152,7 @@ class WeworkService : AccessibilityService() {
         }
 
         private fun sendBroadcast(switch: Boolean) {
-            sendBroadcast(Intent(Constant.WEWORK_NOTIFY).apply {
+            sendBroadcast(Intent(Constant.WEWORK_NOTIFY).setPackage(packageName).apply {
                 putExtra("type", "openWs")
                 putExtra("switch", switch)
             })

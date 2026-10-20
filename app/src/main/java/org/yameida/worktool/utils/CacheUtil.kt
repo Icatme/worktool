@@ -14,6 +14,7 @@ object CacheUtil {
     fun autoDelete() {
         thread {
             LogUtils.d("执行自动清除缓存任务")
+            deleteOldFiles(System.currentTimeMillis() - 24 * 60 * 60 * 1000L, File(Utils.getApp().cacheDir, "share"))
             val externalFilesDir = Utils.getApp().getExternalFilesDir("share")
             if (externalFilesDir != null && externalFilesDir.isDirectory) {
                 val count = deleteOldFiles(System.currentTimeMillis() - 7 * 86400 * 1000, externalFilesDir)
@@ -31,7 +32,9 @@ object CacheUtil {
             if (files != null) {
                 for (file in files) {
                     if (file.isDirectory) {
+                        val expiredDirectory = file.lastModified() < deleteTime
                         count += deleteOldFiles(deleteTime, file)
+                        if (expiredDirectory && file.list()?.isEmpty() == true) file.delete()
                     } else {
                         if (file.lastModified() < deleteTime) {
                             file.delete()

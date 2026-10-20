@@ -2,9 +2,6 @@ package org.yameida.worktool.utils
 
 import com.blankj.utilcode.util.LogUtils
 import com.blankj.utilcode.util.ToastUtils
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.StringCallback
-import com.lzy.okgo.model.Response
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.WebSocket
@@ -15,15 +12,14 @@ import org.yameida.worktool.Constant
 object HostTestHelper {
 
     fun test() {
-        OkGo.get<String>(Constant.getTestUrl())
-            .execute(object : StringCallback() {
-                override fun onSuccess(response: Response<String>) {
+        HttpTransport.get(Constant.getTestUrl(), object : HttpCallback() {
+                override fun onSuccess(response: HttpResult) {
                     LogUtils.i("测试接口: " + response.body())
                     ToastUtils.showLong("服务器连接测试成功!")
                     return
                 }
 
-                override fun onError(response: Response<String>) {
+                override fun onError(response: HttpResult) {
                     LogUtils.e("服务器连接测试失败")
                     ToastUtils.showLong("服务器连接测试失败!" + response.exception)
                 }
@@ -34,7 +30,7 @@ object HostTestHelper {
         val s = OkHttpClient().newWebSocket(Request.Builder().url(Constant.getWsUrl()).build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {
-                    ToastUtils.showLong("链接: ${Constant.getWsUrl()}\nonOpen\n" + response.body())
+                    ToastUtils.showLong("链接: ${Constant.getWsUrl()}\nonOpen\n" + response.body)
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {
@@ -56,7 +52,7 @@ object HostTestHelper {
                 }
 
                 override fun onFailure(webSocket: WebSocket, t: Throwable, response: okhttp3.Response?) {
-                    ToastUtils.showLong("链接: ${Constant.getWsUrl()}\nonClosed\nresponse:${response?.body()} t:${t.message}")
+                    ToastUtils.showLong("链接: ${Constant.getWsUrl()}\nonClosed\nresponse:${response?.body} t:${t.message}")
                 }
             })
     }

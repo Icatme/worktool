@@ -4,9 +4,7 @@ import android.graphics.Bitmap
 import android.view.accessibility.AccessibilityNodeInfo
 import org.yameida.worktool.Constant
 import org.yameida.worktool.model.WeworkMessageBean
-import com.github.yoojia.qrcode.qrcode.QRCodeDecoder
 import com.blankj.utilcode.util.*
-import com.lzy.okgo.OkGo
 import org.yameida.worktool.model.ExecCallbackBean
 import org.yameida.worktool.model.operation.SelectResult
 import org.yameida.worktool.utils.*
@@ -625,6 +623,11 @@ object WeworkOperationImpl {
     ): Boolean {
         val retryCount = maxRetryCount ?: 2
         val startTime = System.currentTimeMillis()
+        if (!Constant.enableSdkShare) {
+            uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_OPERATION,
+                "当前构建未支持旧版 WWAPI 分享，请等待 SDK 兼容与许可核验", startTime, listOf(), titleList)
+            return false
+        }
         if (IWWAPIUtil.sendMicroProgram(fileUrl, originalContent, objectName, receivedContent)) {
             val relaySelectResult = relaySelectTarget(titleList, extraText)
             if (relaySelectResult.result) {
@@ -734,6 +737,11 @@ object WeworkOperationImpl {
     ): Boolean {
         val retryCount = maxRetryCount ?: 2
         val startTime = System.currentTimeMillis()
+        if (objectName.isBlank() || objectName == "." || objectName == ".." ||
+            objectName.any { it == '/' || it == '\\' || it == '\u0000' }) {
+            uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_DATA, "文件名不能包含目录", startTime)
+            return false
+        }
         if (!PermissionUtils.isGrantedDrawOverlays()) {
             LogUtils.e("未打开悬浮窗权限")
             uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_PERMISSION, "未打开悬浮窗权限", startTime, listOf(), titleList)
@@ -741,9 +749,9 @@ object WeworkOperationImpl {
         }
         if (fileUrl != null) {
             LogUtils.i("下载开始 $fileUrl")
-            val execute = OkGo.get<File>(fileUrl).execute()
+            val downloaded = HttpTransport.download(fileUrl)
             LogUtils.i("下载完成 $fileUrl")
-            val body = execute.body()
+            val body = downloaded
             if (body != null) {
                 val df = SimpleDateFormat("yyyy-MM-dd")
                 val filePath = "${
@@ -752,9 +760,13 @@ object WeworkOperationImpl {
                 val newFile = File(filePath)
                 val create = FileUtils.createFileByDeleteOldFile(newFile)
                 if (create && newFile.canWrite()) {
-                    newFile.writeBytes(body.bytes())
+                    newFile.writeBytes(body)
                     LogUtils.i("文件存储本地成功 $filePath")
-                    ShareUtil.share("${if (fileType.isBlank()) "*" else fileType}/*", newFile)
+                    if (!ShareUtil.share("${if (fileType.isBlank()) "*" else fileType}/*", newFile)) {
+                        uploadCommandResult(message, ExecCallbackBean.ERROR_FILE_STORAGE,
+                            "系统未允许文件共享或文件不可用（上限 25 MiB）", startTime, listOf(), titleList)
+                        return false
+                    }
                     val tvFlag = AccessibilityUtil.findOneByText(getRoot(true, share = true), "发送给同事", "选择联系人", "选择参与人")
                     val flagText = tvFlag?.text?.toString() ?: ""
                     if (flagText.contains("发送给同事")) {
@@ -837,7 +849,11 @@ object WeworkOperationImpl {
             if (create && newFile.canWrite()) {
                 newFile.writeBytes(EncodeUtils.base64Decode(fileBase64))
                 LogUtils.i("文件存储本地成功 $filePath")
-                ShareUtil.share("${if (fileType.isBlank()) "*" else fileType}/*", newFile)
+                if (!ShareUtil.share("${if (fileType.isBlank()) "*" else fileType}/*", newFile)) {
+                    uploadCommandResult(message, ExecCallbackBean.ERROR_FILE_STORAGE,
+                        "系统未允许文件共享或文件不可用（上限 25 MiB）", startTime, listOf(), titleList)
+                    return false
+                }
                 val tvFlag = AccessibilityUtil.findOneByText(getRoot(true, share = true), "发送给同事", "选择联系人", "选择参与人")
                 val flagText = tvFlag?.text?.toString() ?: ""
                 if (flagText.contains("发送给同事")) {
@@ -934,6 +950,11 @@ object WeworkOperationImpl {
     ): Boolean {
         val retryCount = maxRetryCount ?: 2
         val startTime = System.currentTimeMillis()
+        if (!Constant.enableSdkShare) {
+            uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_OPERATION,
+                "当前构建未支持旧版 WWAPI 分享，请等待 SDK 兼容与许可核验", startTime, listOf(), titleList)
+            return false
+        }
         if (IWWAPIUtil.sendLink(fileUrl, originalContent, objectName, receivedContent)) {
             val relaySelectResult = relaySelectTarget(titleList, extraText)
             if (relaySelectResult.result) {
@@ -2008,13 +2029,13 @@ object WeworkOperationImpl {
         var filePath = ""
         if (fileUrl != null) {
             LogUtils.i("下载开始 $fileUrl")
-            val execute = OkGo.get<File>(fileUrl).execute()
+            val downloaded = HttpTransport.download(fileUrl)
             LogUtils.i("下载完成 $fileUrl")
-            val body = execute.body()
+            val body = downloaded
             if (body != null) {
                 val df = SimpleDateFormat("yyyy-MM-dd-HH:mm:ss")
                 filePath = "${Utils.getApp().getExternalFilesDir("scan")}/${df.format(Date())}_scan.jpg"
-                ImageUtils.save(ImageUtils.getBitmap(body.byteStream()), filePath, Bitmap.CompressFormat.JPEG, 100, true)
+                ImageUtils.save(ImageUtils.getBitmap(body.inputStream()), filePath, Bitmap.CompressFormat.JPEG, 100, true)
                 PropUtil.setProp(PropUtil.propVideo, filePath)
                 LogUtils.i("文件存储本地成功 $filePath")
             } else {
@@ -3174,61 +3195,8 @@ object WeworkOperationImpl {
      * 获取群二维码并上传后台
      */
     private fun getGroupQrcode(groupName: String, groupRemark: String?): Boolean {
-        if (!Constant.groupQrCode) return true
-        if (AccessibilityUtil.findOneByText(getRoot(), "全部群成员", "微信用户创建", timeout = Constant.CHANGE_PAGE_INTERVAL) != null ||
-            (WeworkRoomUtil.intoRoom(groupName) && WeworkRoomUtil.intoGroupManager())) {
-            val tvList = AccessibilityUtil.findAllOnceByClazz(getRoot(), Views.TextView)
-            tvList.forEachIndexed { index, tv ->
-                if (tv.text?.toString()?.contains("微信用户创建") == true) {
-                    if (index + 1 < tvList.size) {
-                        val tvQr = tvList[index + 1]
-                        AccessibilityUtil.performClick(tvQr)
-                    }
-                }
-            }
-            AccessibilityUtil.findOneByText(getRoot(), "保存到相册")
-            val startTime = System.currentTimeMillis()
-            var currentTime = startTime
-            while (currentTime - startTime <= Constant.CHANGE_PAGE_INTERVAL * 5) {
-                AccessibilityUtil.findOnceByClazz(getRoot(), Views.ProgressBar) ?: break
-                sleep(Constant.POP_WINDOW_INTERVAL / 5)
-                currentTime = System.currentTimeMillis()
-            }
-            if (AccessibilityUtil.findTextAndClick(getRoot(), "保存到相册")) {
-                sleep(Constant.CHANGE_PAGE_INTERVAL)
-                val fileDirPath = "/storage/emulated/0/DCIM/WeixinWork"
-                val fileDir = FileUtils.getFileByPath(fileDirPath)
-                if (fileDir.isDirectory) {
-                    for (file in fileDir.listFiles().filter { it.name.endsWith(".jpg") }) {
-                        val fileTime = file.name.replace("mmexport", "")
-                            .replace(".jpg", "")
-                        LogUtils.v("fileTime: $fileTime")
-                        if (fileTime.isNotBlank()) {
-                            if (fileTime.toLongOrNull() ?: 0 > currentTime) {
-                                LogUtils.d("找到最新保存二维码图片: $fileTime")
-                                try {
-                                    val bitmap = ImageUtils.bytes2Bitmap(file.readBytes())
-                                    val mDecoder = QRCodeDecoder.Builder().build()
-                                    val qrcode = mDecoder.decode(bitmap)
-                                    LogUtils.d("group: $groupName qrcode: $qrcode")
-                                    val weworkMessageBean = WeworkMessageBean()
-                                    weworkMessageBean.type = WeworkMessageBean.GET_GROUP_QRCODE
-                                    weworkMessageBean.groupName = groupName
-                                    weworkMessageBean.groupRemark = groupRemark
-                                    weworkMessageBean.qrcode = qrcode
-                                    WeworkController.weworkService.webSocketManager.send(
-                                        weworkMessageBean
-                                    )
-                                    return true
-                                } catch (e: Exception) {
-                                    LogUtils.e(e)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // Disabled until the user can select an image through a granted content URI.
+        // Never save/scrape another app's album as an implicit background operation.
         return false
     }
 

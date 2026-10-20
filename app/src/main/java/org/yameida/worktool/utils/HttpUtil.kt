@@ -1,10 +1,6 @@
 package org.yameida.worktool.utils
 
 import com.blankj.utilcode.util.*
-import com.lzy.okgo.OkGo
-import com.lzy.okgo.callback.StringCallback
-import com.lzy.okgo.model.Response
-import model.UpdateConfig
 import org.json.JSONObject
 import org.yameida.worktool.Constant
 import org.yameida.worktool.R
@@ -12,7 +8,6 @@ import org.yameida.worktool.model.network.CheckUpdateResult
 import org.yameida.worktool.model.network.GetMyConfigResult
 import org.yameida.worktool.service.log
 import org.yameida.worktool.utils.envcheck.CheckRoot
-import update.UpdateAppUtils
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 import org.yameida.worktool.protocol.UploadOutcome
@@ -23,51 +18,7 @@ object HttpUtil {
      * 检查更新
      */
     fun checkUpdate(url: String? = null) {
-        OkGo.get<String>(url ?: Constant.getCheckUpdateUrl())
-            .execute(object : StringCallback() {
-                override fun onSuccess(response: Response<String>) {
-                    try {
-                        val commonResult =
-                            GsonUtils.fromJson(
-                                response.body(),
-                                CheckUpdateResult::class.java
-                            )
-                        if (commonResult.code != 200) {
-                            return onError(response)
-                        }
-                        LogUtils.i(commonResult.data)
-                        commonResult.data?.apply {
-                            if (AppUtils.getAppVersionCode() < this.versionCode) {
-                                UpdateAppUtils
-                                    .getInstance()
-                                    .apkUrl(this.downloadUrl)
-                                    .updateTitle(this.title)
-                                    .updateContent(this.updateLog.replace("\\n", "\n"))
-                                    .updateConfig(
-                                        UpdateConfig(
-                                            force = AppUtils.getAppVersionCode() < this.minVersionCode,
-                                            serverVersionName = this.versionName,
-                                            serverVersionCode = this.versionCode,
-                                            isShowNotification = false
-                                        )
-                                    )
-                                    .update()
-                            } else {
-                                ToastUtils.showShort(R.string.update_no_update)
-                            }
-                            return
-                        }
-                    } catch (e: Exception) {
-                        LogUtils.e(e)
-                        onError(response)
-                    }
-                }
-
-                override fun onError(response: Response<String>) {
-                    ToastUtils.showLong(R.string.update_failed)
-                    LogUtils.e("检查更新失败")
-                }
-            })
+        ToastUtils.showLong("企业内部分发版本请联系管理员更新")
     }
 
     /**
@@ -80,9 +31,8 @@ object HttpUtil {
             }
             return
         }
-        OkGo.get<String>(Constant.getMyConfig())
-            .execute(object : StringCallback() {
-                override fun onSuccess(response: Response<String>) {
+        HttpTransport.get(Constant.getMyConfig(), object : HttpCallback() {
+                override fun onSuccess(response: HttpResult) {
                     try {
                         val commonResult =
                             GsonUtils.fromJson(
@@ -113,7 +63,7 @@ object HttpUtil {
                     }
                 }
 
-                override fun onError(response: Response<String>) {
+                override fun onError(response: HttpResult) {
                     ToastUtils.showLong("获取配置失败 请检查机器人ID")
                     LogUtils.e("获取配置失败 请检查机器人ID")
                 }
@@ -150,15 +100,13 @@ object HttpUtil {
         json.put("roomType", roomType)
         json.put("atMe", false)
         json.put("textType", 2)
-        OkGo.post<String>(url)
-            .upJson(json)
-            .execute(object : StringCallback() {
-                override fun onSuccess(response: Response<String>) {
+        HttpTransport.postJson(url, json.toString(), object : HttpCallback() {
+                override fun onSuccess(response: HttpResult) {
                     LogUtils.d("推送图片成功: ${titleList.joinToString()} $receivedName")
                     log("推送图片成功: ${titleList.joinToString()} $receivedName")
                 }
 
-                override fun onError(response: Response<String>) {
+                override fun onError(response: HttpResult) {
                     ToastUtils.showLong("推送图片失败")
                     LogUtils.e("推送图片失败")
                     error("推送图片失败: ${titleList.joinToString()} $receivedName")
@@ -175,17 +123,15 @@ object HttpUtil {
             if (completed.compareAndSet(false, true)) completion(success)
         }
         try {
-            OkGo.post<String>(Constant.getPushLocalFileUrl())
-                .addFileParams("file", listOf(file))
-                .execute(object : StringCallback() {
-                    override fun onSuccess(response: Response<String>) {
+            HttpTransport.postFile(Constant.getPushLocalFileUrl(), file, object : HttpCallback() {
+                    override fun onSuccess(response: HttpResult) {
                         val code = try {
                             JSONObject(response.body()).optInt("code", -1)
                         } catch (e: Exception) { null }
                         finish(UploadOutcome.accepted(response.code(), code))
                     }
 
-                    override fun onError(response: Response<String>) {
+                    override fun onError(response: HttpResult) {
                         finish(false)
                     }
                 })

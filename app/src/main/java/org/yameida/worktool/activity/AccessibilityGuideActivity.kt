@@ -9,7 +9,7 @@ import android.view.animation.Animation
 import androidx.appcompat.app.AppCompatActivity
 import com.blankj.utilcode.util.LogUtils
 import com.blankj.utilcode.util.SPUtils
-import kotlinx.android.synthetic.main.activity_accessibility_guide.*
+import org.yameida.worktool.databinding.ActivityAccessibilityGuideBinding
 import org.yameida.worktool.R
 import org.yameida.worktool.utils.PermissionHelper
 
@@ -18,10 +18,22 @@ import org.yameida.worktool.utils.PermissionHelper
  * 提示开启无障碍服务权限
  */
 class AccessibilityGuideActivity: AppCompatActivity() {
+    private lateinit var binding: ActivityAccessibilityGuideBinding
+    private val rl_guide_title get() = binding.rlGuideTitle
+    private val iv_guide_icon get() = binding.ivGuideIcon
+    private val tv_guide_icon get() = binding.tvGuideIcon
+    private val ll_guide_permit get() = binding.llGuidePermit
+    private val iv_over_finger get() = binding.ivOverFinger
+    private val tv_float_allow get() = binding.tvFloatAllow
+    private val tv_float_reject get() = binding.tvFloatReject
+    private val cb_guide_not get() = binding.cbGuideNot
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_accessibility_guide)
+        binding = ActivityAccessibilityGuideBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+        org.yameida.worktool.utils.WindowInsetsHelper.apply(binding.root)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LOW_PROFILE or
                 View.SYSTEM_UI_FLAG_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
