@@ -21,7 +21,11 @@ object Wire {
     private val identifier = Regex("[A-Za-z0-9._:-]{1,128}")
     private val codePattern = Regex("[a-z0-9_]{1,64}")
     fun validId(value: String) = identifier.matches(value)
-    fun validText(value: String) = value.isNotBlank() && value.length <= 4000 && unicodeValid(value)
+    // A fixed v1 predicate, independent of Java/Go Unicode whitespace tables.
+    private fun protocolSpace(c: Char) = c in '\u0009'..'\u000d' || c in '\u001c'..'\u0020' ||
+        c == '\u0085' || c == '\u00a0' || c == '\u1680' || c in '\u2000'..'\u200a' ||
+        c in '\u2028'..'\u2029' || c == '\u202f' || c == '\u205f' || c == '\u3000'
+    fun validText(value: String) = value.any { !protocolSpace(it) } && value.length <= 4000 && unicodeValid(value)
     private fun unicodeValid(value: String) =
         value.indices.all { i ->
             when {

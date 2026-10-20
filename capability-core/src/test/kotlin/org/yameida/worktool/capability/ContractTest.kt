@@ -196,4 +196,16 @@ class ContractTest {
         File(dir, "kotlin-event.json").writeText(Wire.event("kotlin-event", target, 1900000000000,
             ObservedMessage("chat-local-1", "你好，SDK 👋", "remote")))
     }
+    @Test fun sharedUnicodeWhitespaceCasesAgreeWithWireCommands() {
+        val cases = com.google.gson.JsonParser.parseString(File("protocol/v1/text-cases.json").readText()).asJsonArray
+        cases.forEach {
+            val text = it.asJsonObject["text"].asString
+            val valid = it.asJsonObject["valid"].asBoolean
+            assertEquals(valid, Wire.validText(text))
+            try {
+                Wire.commands(Wire.encode(command(text = text)))
+                assertTrue(valid)
+            } catch (_: ProtocolException) { assertFalse(valid) }
+        }
+    }
 }

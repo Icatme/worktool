@@ -85,7 +85,12 @@ func (t Target) valid() bool {
 	return idPattern.MatchString(t.DeviceID) && idPattern.MatchString(t.SessionID)
 }
 func textValid(s string) bool {
-	return utf8.ValidString(s) && strings.TrimSpace(s) != "" && len(utf16.Encode([]rune(s))) <= 4000
+	return utf8.ValidString(s) && strings.TrimFunc(s, protocolSpace) != "" && len(utf16.Encode([]rune(s))) <= 4000
+}
+func protocolSpace(c rune) bool {
+	return (c >= 0x9 && c <= 0xd) || (c >= 0x1c && c <= 0x20) ||
+		c == 0x85 || c == 0xa0 || c == 0x1680 || (c >= 0x2000 && c <= 0x200a) ||
+		(c >= 0x2028 && c <= 0x2029) || c == 0x202f || c == 0x205f || c == 0x3000
 }
 func timestampValid(t int64) bool { return t > 0 && t <= 9007199254740991 }
 func malformed() error            { return ProtocolError{Version: 1, Kind: "error", Code: "malformed"} }

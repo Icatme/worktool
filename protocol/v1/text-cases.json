@@ -1,0 +1,11 @@
+[
+  {"text":"","valid":false},
+  {"text":" \t\r\n","valid":false},
+  {"text":"\u001c\u001d\u001e\u001f","valid":false},
+  {"text":"\u0085","valid":false},
+  {"text":"\u00a0\u1680\u2000\u200a\u2028\u2029\u202f\u205f\u3000","valid":false},
+  {"text":"\u001chello\u0085","valid":true},
+  {"text":"\u200b","valid":true},
+  {"text":"\ufeff","valid":true},
+  {"text":"你好 👋","valid":true}
+]

@@ -2,6 +2,8 @@ package worktool
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -54,5 +56,29 @@ func TestBatchDepthIsCheckedAfterWrapping(t *testing.T) {
 	}
 	if _, err := EncodeBatch([]Command{c, query("query")}); err == nil {
 		t.Fatal("batch nesting exceeded limit")
+	}
+}
+func TestSharedUnicodeWhitespaceCases(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "protocol", "v1", "text-cases.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cases []struct {
+		Text  string `json:"text"`
+		Valid bool   `json:"valid"`
+	}
+	if err = json.Unmarshal(raw, &cases); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range cases {
+		cmd, err := NewText("unicode", target, "chat", c.Text, time.Now().Add(time.Minute))
+		if (err == nil) != c.Valid {
+			t.Fatalf("%q validity mismatch: %v", c.Text, err)
+		}
+		if c.Valid {
+			if _, err = EncodeCommand(cmd); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 }

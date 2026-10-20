@@ -12,6 +12,8 @@ UTF-8 JSON messages, maximum 65,536 bytes each, object root. Integer fields use 
 
 `target.sessionId` is the execution epoch advertised by a trusted local pairing/adapter, **not a chat name**. The SDK requires an explicit target; discovery and pairing are outside v1. The APK renews its epoch whenever the executor is rebuilt, including switching modes.
 
+For nonblank text, v1 uses the same fixed whitespace set in both implementations: U+0009–000D, U+001C–0020, U+0085, U+00A0, U+1680, U+2000–200A, U+2028–2029, U+202F, U+205F and U+3000. At least one character outside this set is required. Text is not trimmed or repaired. Shared edge cases are in `text-cases.json`.
+
 | Operation | Parameters | Result data |
 | --- | --- | --- |
 | `state.get` | `{}` | `paused`, `accessibility`, `textAllowed`, `eventsAllowed`, optional `conversationId` |
