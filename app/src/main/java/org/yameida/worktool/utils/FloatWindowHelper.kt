@@ -19,6 +19,8 @@ import org.yameida.floatwindow.DefaultFloatService
 import org.yameida.floatwindow.listener.OnClickListener
 import org.yameida.worktool.Constant
 import org.yameida.worktool.R
+import org.yameida.worktool.protocol.LegacyMode
+import org.yameida.worktool.capabilities.LocalCapabilities
 import org.yameida.worktool.activity.ListenActivity
 import org.yameida.worktool.activity.SettingsActivity
 import org.yameida.worktool.model.WeworkMessageBean
@@ -30,7 +32,7 @@ import kotlin.concurrent.thread
 
 object FloatWindowHelper {
 
-    var isPause = false
+    @Volatile var isPause = false
 
     fun showWindow() {
         LogUtils.d("FloatWindowHelper.showWindow()")
@@ -50,8 +52,11 @@ object FloatWindowHelper {
             LogUtils.i("主功能继续")
             ToastUtils.showShort("主功能继续~")
             //隐藏软键盘模式
-            WeworkController.weworkService.softKeyboardController.showMode = AccessibilityService.SHOW_MODE_HIDDEN
+            WeworkController.weworkService.softKeyboardController.showMode =
+                if (LegacyMode.isEnabled()) AccessibilityService.SHOW_MODE_HIDDEN else AccessibilityService.SHOW_MODE_AUTO
             isPause = false
+            LocalCapabilities.current?.invalidateSelection()
+            if (!LegacyMode.isEnabled()) return
             MyLooper.getInstance().removeMessages(WeworkMessageBean.LOOP_RECEIVE_NEW_MESSAGE)
             MyLooper.getInstance().sendMessage(Message.obtain().apply {
                 what = WeworkMessageBean.LOOP_RECEIVE_NEW_MESSAGE
@@ -72,6 +77,7 @@ object FloatWindowHelper {
             //显示软键盘模式
             WeworkController.weworkService.softKeyboardController.showMode = AccessibilityService.SHOW_MODE_AUTO
             isPause = true
+            LocalCapabilities.current?.invalidateSelection()
             WeworkController.mainLoopRunning = false
         } else {
             LogUtils.e("请先打开WorkTool主功能~")
@@ -82,10 +88,26 @@ object FloatWindowHelper {
         override fun onServiceConnected(name: ComponentName?, iBinder: IBinder?) {
             LogUtils.i("DefaultFloatService 服务连接")
             val service = (iBinder as DefaultFloatService.DefaultFloatServiceBinder).getService()
+            service.onMenuWindowTransition = { oldId, newId ->
+                LocalCapabilities.current?.noteLocalOverlayTransition(oldId, newId)
+            }
+            service.prepareCapabilityBinding = {
+                if (LegacyMode.isEnabled()) null else {
+                    val complete = LocalCapabilities.current?.prepareCurrentChatBinding()
+                    val finish: () -> Unit = {
+                        if (complete?.invoke() != null) service.showCapabilityBinding()
+                        else ToastUtils.showLong("无法绑定：请开启本地能力，在企微聊天页清空草稿；不支持或有歧义时拒绝")
+                    }
+                    finish
+                }
+            }
             service.onClickListener = object : OnClickListener {
                 override fun onClick(v: View, event: Int) {
                     when (event) {
                         1 -> {
+                            if (!LegacyMode.isEnabled()) {
+                                return
+                            }
                             if (PermissionHelper.isAccessibilitySettingOn()) {
                                 if (!isPause) {
                                     ToastUtils.showShort("请先暂停WorkTool主功能~")

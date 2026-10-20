@@ -52,6 +52,42 @@
             android:background="@color/background"
             android:orientation="vertical">
 
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/sw_legacy"
+                android:saveEnabled="false"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/capability_legacy" />
+            <TextView
+                android:id="@+id/tv_capability_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="12dp"
+                android:text="@string/capability_default_status" />
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/sw_capability_text"
+                android:saveEnabled="false"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/capability_text" />
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/sw_capability_events"
+                android:saveEnabled="false"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/capability_events" />
+            <androidx.appcompat.widget.SwitchCompat
+                android:id="@+id/sw_capability_pause"
+                android:saveEnabled="false"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/capability_pause" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="12dp"
+                android:text="@string/capability_instructions" />
+
             <Button
                 android:id="@+id/bt_capture"
                 android:layout_width="match_parent"
@@ -89,7 +125,7 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="1.申请链接号后在下方填写并点击保存"
+                        android:text="@string/capability_legacy_step"
                         android:textColor="@color/color_333333"
                         android:textSize="@dimen/setting_start_font_size" />
 

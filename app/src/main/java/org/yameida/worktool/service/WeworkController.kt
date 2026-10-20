@@ -13,6 +13,7 @@ import org.yameida.worktool.model.WeworkMessageBean
 object WeworkController {
 
     lateinit var weworkService: WeworkService
+    @Volatile var legacyExecutionActive = false
     var enableLoopRunning = false
     var mainLoopRunning = false
 

@@ -44,6 +44,7 @@ android {
 apply from: rootProject.file('scripts/dependency-inventory.gradle')
 
 dependencies {
+    implementation project(':capability-core')
     implementation project(':baselibrary')
     implementation project(':floatwindow')
     implementation files('libs/lib_wwapi-2.0.12.11.aar')

@@ -37,13 +37,15 @@ object MyLooper {
         if (myLooper != null) {
             threadHandler = object : Handler(myLooper) {
                 override fun handleMessage(msg: Message) {
+                    if (!WeworkController.legacyExecutionActive) return
                     val queued = msg.obj as? QueuedCommand
                     val command = queued?.message ?: (msg.obj as WeworkMessageBean)
                     // Mark running before waiting so queue-clear cannot release the paused command.
                     if (queued != null && !deliveries.start(queued.identity)) return
-                    while (FloatWindowHelper.isPause) {
+                    while (FloatWindowHelper.isPause && WeworkController.legacyExecutionActive) {
                         sleep(Constant.CHANGE_PAGE_INTERVAL)
                     }
+                    if (!WeworkController.legacyExecutionActive) { finishDelivery(command); return }
                     try {
                         dealWithMessage(command)
                     } catch (e: Exception) {
@@ -74,6 +76,15 @@ object MyLooper {
         SPUtils.getInstance("myInfo").clear()
     }
 
+    @Synchronized
+    fun stopForServiceTeardown() {
+        WeworkController.legacyExecutionActive = false
+        WeworkController.enableLoopRunning = false
+        WeworkController.mainLoopRunning = false
+        threadHandler?.removeCallbacksAndMessages(null)
+        deliveries.releaseQueued()
+    }
+
     fun getInstance(): Handler {
         while (true) {
             threadHandler?.let { return it }
@@ -84,6 +95,7 @@ object MyLooper {
 
     @Synchronized
     fun onMessage(webSocket: WebSocket?, text: String) {
+        if (!WeworkController.legacyExecutionActive) return
         val messageList: WeworkMessageListBean<WeworkMessageBean> =
             GsonUtils.fromJson<WeworkMessageListBean<WeworkMessageBean>>(text, object : TypeToken<WeworkMessageListBean<ExecCallbackBean>>(){}.type)
         if (messageList.socketType == WeworkMessageListBean.SOCKET_TYPE_HEARTBEAT) {

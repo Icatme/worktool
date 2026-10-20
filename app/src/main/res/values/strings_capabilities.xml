@@ -1,0 +1,12 @@
+<resources>
+    <string name="capability_legacy">旧平台兼容（本次进程；主功能启动后锁定）</string>
+    <string name="capability_text">本地允许当前会话文本操作</string>
+    <string name="capability_events">本地允许当前会话纯文本观察</string>
+    <string name="capability_pause">暂停独立能力</string>
+    <string name="capability_instructions">默认离线，无预设通道。配置通道适配器后，仍须本机允许能力。主功能开启后，先恢复，再进入企微聊天页，点击悬浮菜单圆形记录图标绑定当前会话。绑定仅60秒、文本尝试一次有效；切换、滚动、暂停即失效。不能按显示名称远程选人。观察仅针对可见纯文本，可能遗漏；点击发送不代表送达。此版本尚未完成设备验收。</string>
+    <string name="capability_default_status">独立能力：无默认网络通道；文本和观察默认关闭</string>
+    <string name="capability_legacy_status">旧平台兼容已显式启用：使用下方服务器与链接号。独立能力关闭。重新启动应用进程后默认恢复离线。</string>
+    <string name="capability_mode_locked">模式已锁定；先关闭主功能，再关闭并重启应用进程后选择，避免两个执行器同时操作</string>
+    <string name="capability_legacy_settings">该设置页仅用于旧平台兼容模式</string>
+    <string name="capability_legacy_step">旧平台兼容模式才需要填写链接号；独立能力无需链接号</string>
+</resources>

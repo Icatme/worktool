@@ -25,6 +25,8 @@ import org.yameida.worktool.utils.*
 import org.yameida.worktool.utils.capture.MediaProjectionHolder
 import org.yameida.worktool.utils.envcheck.CheckHook
 import org.yameida.worktool.utils.envcheck.CheckRoot
+import org.yameida.worktool.protocol.LegacyMode
+import org.yameida.worktool.capabilities.LocalCapabilities
 
 
 class ListenActivity : AppCompatActivity() {
@@ -64,6 +66,7 @@ class ListenActivity : AppCompatActivity() {
         org.yameida.worktool.utils.WindowInsetsHelper.apply(binding.root)
 
         initView()
+        initCapabilities()
         initAccessibility()
         initOverlays()
         initData()
@@ -79,6 +82,9 @@ class ListenActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        LocalCapabilities.current?.invalidateSelection()
+        binding.swCapabilityPause.isChecked = FloatWindowHelper.isPause
+        updateModeViews()
         sw_overlay.isChecked = Settings.canDrawOverlays(Utils.getApp()) && FlowPermissionHelper.canBackgroundStart(Utils.getApp())
         sw_accessibility.isChecked = PermissionHelper.isAccessibilitySettingOn()
         if (needToWork) {
@@ -89,10 +95,12 @@ class ListenActivity : AppCompatActivity() {
 
     private fun initView() {
         iv_settings.setOnClickListener {
-            SettingsActivity.enterActivity(this)
+            if (LegacyMode.isEnabled()) SettingsActivity.enterActivity(this)
+            else ToastUtils.showShort(R.string.capability_legacy_settings)
         }
         et_channel.setText(Constant.robotId)
         bt_save.setOnClickListener {
+            if (!LegacyMode.isEnabled()) return@setOnClickListener
             val channel = et_channel.text.toString().trim()
             Constant.robotId = channel
             ToastUtils.showLong("保存成功")
@@ -126,8 +134,8 @@ class ListenActivity : AppCompatActivity() {
                 tv_work_version.text = "检测到您尚未安装企业微信，请先安装登录!"
             }
             in Constant.AVAILABLE_VERSION -> {
-                LogUtils.i("当前企业微信版本已适配: $workVersionName")
-                val tip = "$workVersionName   已适配，可放心使用~"
+                LogUtils.i("企业微信历史适配记录: $workVersionName")
+                val tip = "$workVersionName   历史适配记录；本次独立能力尚待设备验收"
                 tv_work_version.text = tip
                 Constant.version = Constant.AVAILABLE_VERSION_MAP[workVersionName] ?: Int.MAX_VALUE
             }
@@ -148,7 +156,7 @@ class ListenActivity : AppCompatActivity() {
         sw_accessibility.setOnCheckedChangeListener(CompoundButton.OnCheckedChangeListener { buttonView, isChecked ->
             LogUtils.i("sw_accessibility onCheckedChanged: $isChecked")
             if (isChecked) {
-                if (Constant.robotId.isBlank()) {
+                if (LegacyMode.isEnabled() && Constant.robotId.isBlank()) {
                     sw_accessibility.isChecked = false
                     ToastUtils.showLong("请先填写并保存链接号~")
                 } else if (!PermissionHelper.isAccessibilitySettingOn()) {
@@ -200,8 +208,45 @@ class ListenActivity : AppCompatActivity() {
     }
 
     private fun initData() {
-        HttpUtil.getMyConfig(toast = false)
+        if (LegacyMode.isEnabled()) HttpUtil.getMyConfig(toast = false)
         CacheUtil.autoDelete()
+    }
+
+    private fun initCapabilities() {
+        binding.swLegacy.isChecked = LegacyMode.isEnabled()
+        binding.swCapabilityText.isChecked = LocalCapabilities.textAllowed
+        binding.swCapabilityEvents.isChecked = LocalCapabilities.eventsAllowed
+        binding.swCapabilityPause.isChecked = FloatWindowHelper.isPause
+        binding.swLegacy.setOnCheckedChangeListener { _, enabled ->
+            if (!LegacyMode.configure(enabled)) {
+                binding.swLegacy.isChecked = LegacyMode.isEnabled()
+                ToastUtils.showLong(R.string.capability_mode_locked)
+            }
+            updateModeViews()
+        }
+        binding.swCapabilityText.setOnCheckedChangeListener { _, enabled ->
+            LocalCapabilities.configure(enabled, binding.swCapabilityEvents.isChecked)
+        }
+        binding.swCapabilityEvents.setOnCheckedChangeListener { _, enabled ->
+            LocalCapabilities.configure(binding.swCapabilityText.isChecked, enabled)
+        }
+        binding.swCapabilityPause.setOnCheckedChangeListener { _, paused ->
+            FloatWindowHelper.isPause = paused
+            LocalCapabilities.current?.localPauseChanged()
+        }
+        updateModeViews()
+    }
+
+    private fun updateModeViews() {
+        val legacy = LegacyMode.isEnabled()
+        binding.tvCapabilityStatus.setText(if (legacy) R.string.capability_legacy_status else R.string.capability_default_status)
+        binding.swLegacy.isEnabled = !LegacyMode.isLocked()
+        binding.swCapabilityText.isEnabled = !legacy
+        binding.swCapabilityEvents.isEnabled = !legacy
+        binding.swCapabilityPause.isEnabled = !legacy
+        et_channel.isEnabled = legacy
+        bt_save.isEnabled = legacy
+        tv_host.isEnabled = legacy
     }
 
     private fun initNotification() {
