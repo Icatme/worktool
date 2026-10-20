@@ -45,6 +45,11 @@ check("RECEIVER_NOT_EXPORTED" in (root/"app/src/main/java/org/yameida/worktool/a
       "activity receiver private")
 application = (root/"app/src/main/java/org/yameida/worktool/MyApplication.kt").read_text(encoding="utf-8")
 check("PlayNotifyManager.show()" not in application, "application does not start unauthorized projection")
+listen_layout = ET.parse(root/"app/src/main/res/layout/activity_listen.xml").getroot()
+views = {v.get(android+"id"): v for v in listen_layout.iter()}
+for control in ("sw_legacy", "sw_capability_text", "sw_capability_events", "sw_capability_pause"):
+    check(views["@+id/"+control].get(android+"saveEnabled") == "false",
+          "saved view state cannot restore authorization: "+control)
 for module in ("app", "baselibrary", "floatwindow"):
     text = (root/module/"build.gradle").read_text(encoding="utf-8")
     check("compileSdk 36" in text and "targetSdkVersion 36" in text and "minSdkVersion 24" in text,

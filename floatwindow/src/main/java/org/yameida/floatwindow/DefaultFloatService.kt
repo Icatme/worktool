@@ -35,6 +35,10 @@ class DefaultFloatService : BaseFloatWindow(), View.OnClickListener {
     private val CHANNEL_ID_STRING = "907"
     var floatWindowListener: FloatWindowListener? = null
     var onClickListener: OnClickListener? = null
+    /** Supplies actual old/new floating window IDs, never app/package-wide exemptions. */
+    var onMenuWindowTransition: ((Int, Int) -> Unit)? = null
+    /** Capture the intended chat now; returned work completes only after the logo is attached. */
+    var prepareCapabilityBinding: (() -> (() -> Unit)?)? = null
 
     inner class DefaultFloatServiceBinder : Binder() {
         fun getService() = this@DefaultFloatService
@@ -82,7 +86,18 @@ class DefaultFloatService : BaseFloatWindow(), View.OnClickListener {
 
     override fun onClick(v: View) {
         LogUtils.v(TAG, "float onClick: ")
+        val oldWindowId = accessibilityWindow(v)
         openMenu()
+        val bind = if (v == leftBinding.ivStartLeft || v == rightBinding.ivStartRight)
+            prepareCapabilityBinding?.invoke() else null
+        if (bind != null) {
+            afterLogoAttached {
+                onMenuWindowTransition?.invoke(oldWindowId, accessibilityWindow(logoView))
+                bind()
+            }
+            return
+        }
+        onMenuWindowTransition?.invoke(oldWindowId, accessibilityWindow(logoView))
         if (v == leftBinding.flWindowBackgroundLeft || v == rightBinding.flWindowBackgroundRight) {
             onClickListener?.onClick(v,-1)
         }
@@ -107,6 +122,34 @@ class DefaultFloatService : BaseFloatWindow(), View.OnClickListener {
         if (v == leftBinding.ivStopLeft || v == rightBinding.ivStopRight) {
             onClickListener?.onClick(v,6)
         }
+    }
+
+    private fun accessibilityWindow(view: View): Int {
+        val node = view.createAccessibilityNodeInfo()
+        return try { node.windowId } finally { node.recycle() }
+    }
+
+    private fun afterLogoAttached(block: () -> Unit) {
+        if (logoView.isAttachedToWindow) {
+            logoView.post { block() }
+        } else {
+            logoView.addOnAttachStateChangeListener(object : View.OnAttachStateChangeListener {
+                override fun onViewAttachedToWindow(v: View) {
+                    v.removeOnAttachStateChangeListener(this)
+                    v.post { block() }
+                }
+                override fun onViewDetachedFromWindow(v: View) = Unit
+            })
+        }
+    }
+
+    /** Updates the existing view without opening a Toast/window after a chat has been bound. */
+    fun showCapabilityBinding() {
+        logoBinding.tvFloatTime.setText(R.string.capability_bound_short)
+        logoBinding.tvFloatTime.visibility = View.VISIBLE
+        logoBinding.tvFloatTime.postDelayed({
+            logoBinding.tvFloatTime.visibility = View.GONE
+        }, 1500)
     }
 
     override fun getLeftView(inflater: LayoutInflater): View {

@@ -27,6 +27,10 @@ object HostTestHelper {
     }
 
     fun testWs() {
+        if (!org.yameida.worktool.protocol.LegacyMode.isEnabled()) {
+            ToastUtils.showShort("旧平台兼容模式未启用")
+            return
+        }
         val s = OkHttpClient().newWebSocket(Request.Builder().url(Constant.getWsUrl()).build(),
             object : WebSocketListener() {
                 override fun onOpen(webSocket: WebSocket, response: okhttp3.Response) {

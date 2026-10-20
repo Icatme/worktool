@@ -10,6 +10,7 @@ import org.yameida.worktool.Constant;
 import org.yameida.worktool.model.WeworkMessageBean;
 import org.yameida.worktool.model.WeworkMessageListBean;
 import org.yameida.worktool.service.WeworkController;
+import org.yameida.worktool.protocol.LegacyMode;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -38,9 +39,15 @@ public class WebSocketManager {
     private String url;
     private WebSocketListener listener;
     private boolean connecting = false;
+    private volatile boolean closed = true;
     private long lastConnectedTime = 0L;
 
+    /** Inert output sink for the default offline mode; does not construct a client or schedule tasks. */
+    public WebSocketManager() {}
+
     public WebSocketManager(String url, WebSocketListener listener) {
+        if (!LegacyMode.isEnabled()) return;
+        closed = false;
         Log.e(url, "新建链接");
         this.url = url;
         this.listener = listener;
@@ -58,6 +65,7 @@ public class WebSocketManager {
 
     /** Receipt ACK only. Deduplication belongs to the command queue, not the transport. */
     public synchronized boolean confirm(String messageId) {
+        if (closed || !LegacyMode.isEnabled()) return false;
         if (messageId == null || messageId.trim().isEmpty()) return false;
         send(new WeworkMessageListBean(messageId, WeworkMessageListBean.SOCKET_TYPE_MESSAGE_CONFIRM));
         return true;
@@ -68,6 +76,7 @@ public class WebSocketManager {
     }
 
     public void send(WeworkMessageListBean msg, boolean log) {
+        if (closed || socket == null || !LegacyMode.isEnabled()) return;
         String json = GsonUtils.toJson(msg);
         boolean success = socket.send(json);
         if (log && success)
@@ -77,14 +86,18 @@ public class WebSocketManager {
     }
 
     public void send(String msg) {
+        if (closed || socket == null || !LegacyMode.isEnabled()) return;
         boolean success = socket.send(msg);
         LogUtils.e(url, msg, (success ? "通讯消息发送成功！" : "通讯消息发送失败！"));
     }
 
-    public void close(int code, String reason) {
-        task.cancel(true);
+    public synchronized void close(int code, String reason) {
+        closed = true;
+        if (task != null) task.cancel(true);
+        if (socket == null) return;
         Log.e("url", "task 取消");
         this.socket.close(code, reason);
+        if (url != null) webSocketManager.remove(url, this);
         Log.e(url, "链接关闭");
     }
 
@@ -98,11 +111,12 @@ public class WebSocketManager {
     }
 
     public void reConnect() {
+        if (closed || !LegacyMode.isEnabled()) return;
         connecting = true;
         Log.e(url, "重连");
         boolean isConnect = false;
         int interval = reconnectInt;
-        while (true) {
+        while (!closed && LegacyMode.isEnabled() && !Thread.currentThread().isInterrupted()) {
             try {
                 isConnect = connect();
                 if (isConnect) {
@@ -118,24 +132,30 @@ public class WebSocketManager {
                     interval *= 2;
                 }
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                Thread.currentThread().interrupt();
+                break;
             }
         }
+        connecting = false;
     }
 
-    private boolean connect() {
+    private synchronized boolean connect() {
+        if (closed || !LegacyMode.isEnabled()) return false;
+        if (socket != null) socket.cancel();
         WebSocket s = new OkHttpClient().newWebSocket(new Request.Builder().url(url).build(), listener);
         if (s.send(WebSocketManager.HEARTBEAT)) {
             this.socket = s;
             s.send("{\"td\":" + System.currentTimeMillis() + "}");
             return true;
         }
+        s.cancel();
         return false;
     }
 
     private ScheduledFuture heartCheckStart() {
         lastConnectedTime = System.currentTimeMillis();
         Runnable r = () -> {
+            if (closed || !LegacyMode.isEnabled()) return;
             SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");//设置日期格式
             Log.d(url, "心跳检测" + df.format(new Date()));// new Date()为获取当前系统时间
             if (!connecting && (socket == null || !socket.send(HEARTBEAT))) {

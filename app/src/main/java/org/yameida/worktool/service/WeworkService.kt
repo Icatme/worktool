@@ -13,10 +13,11 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.yameida.worktool.Constant
-import org.yameida.worktool.Demo
 import org.yameida.worktool.utils.*
+import org.yameida.worktool.protocol.LegacyMode
+import org.yameida.worktool.capabilities.AndroidCapabilities
+import org.yameida.worktool.capabilities.LocalCapabilities
 import java.lang.Exception
-import kotlin.concurrent.thread
 
 /**
  * 企业微信辅助服务
@@ -25,7 +26,7 @@ import kotlin.concurrent.thread
  */
 class WeworkService : AccessibilityService() {
     private val TAG = "WeworkService"
-    lateinit var webSocketManager: WebSocketManager
+    var webSocketManager: WebSocketManager = WebSocketManager()
     var currentPackage = ""
     var currentClass = ""
     var currentClassPackage = ""
@@ -34,6 +35,7 @@ class WeworkService : AccessibilityService() {
     private val channelReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.getStringExtra("type") == "modify_channel") {
+                if (!WeworkController.legacyExecutionActive) return
                 webSocketManager.close(1000, "modify_channel")
                 initWebSocket()
             }
@@ -42,18 +44,27 @@ class WeworkService : AccessibilityService() {
 
     override fun onServiceConnected() {
         LogUtils.i("初始化成功")
+        LocalCapabilities.current?.close()
+        LocalCapabilities.current = null
+        webSocketManager.close(1000, "service reconnected")
         //隐藏软键盘模式
-        softKeyboardController.showMode = SHOW_MODE_HIDDEN
+        softKeyboardController.showMode = if (LegacyMode.isEnabled()) SHOW_MODE_HIDDEN else SHOW_MODE_AUTO
         WeworkController.weworkService = this
-        WeworkController.enableLoopRunning = true
-        //初始化长连接
-        initWebSocket()
-        //初始化消息处理器
-        MyLooper.init()
+        LegacyMode.lock()
+        WeworkController.legacyExecutionActive = LegacyMode.isEnabled()
+        WeworkController.enableLoopRunning = LegacyMode.isEnabled()
+        if (LegacyMode.isEnabled()) {
+            initWebSocket()
+            MyLooper.init()
+        } else {
+            // Observe navigation away from WeCom too, to invalidate local conversation handles.
+            serviceInfo = serviceInfo.apply { packageNames = null }
+            FloatWindowHelper.isPause = true
+            LocalCapabilities.current = AndroidCapabilities(this)
+        }
         //初始化图片接收
         // Cross-app Android/data image-cache observation is unsupported on modern Android.
         //开发者可以在这里添加测试代码 启动时调用一次
-        thread { Demo.test(AppUtils.isAppDebug()) }
 
         //监听是否修改链接号并重新长连接
         if (!receiverRegistered) {
@@ -64,6 +75,7 @@ class WeworkService : AccessibilityService() {
     }
 
     private fun initWebSocket() {
+        if (!LegacyMode.isEnabled() || !WeworkController.legacyExecutionActive) return
         val url = Constant.getWsUrl()
         val listener = EchoWebSocketListener()
         LogUtils.d("initWebSocket: $url")
@@ -79,15 +91,19 @@ class WeworkService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         currentPackage = event.packageName?.toString() ?: ""
         val className = event.className?.toString() ?: ""
-        if (className.contains(currentPackage)) {
-            LogUtils.d("更新当前页面: currentPackage: ${event.packageName} className: ${event.className}")
+        if (currentPackage.isNotEmpty() && className.isNotEmpty() && className.contains(currentPackage)) {
+            if (LegacyMode.isEnabled())
+                LogUtils.d("更新当前页面: currentPackage: ${event.packageName} className: ${event.className}")
             currentClass = className
             currentClassPackage = currentPackage
         }
+        LocalCapabilities.current?.onEvent(event)
     }
 
     override fun onInterrupt() {
         LogUtils.i("onInterrupt")
+        FloatWindowHelper.isPause = true
+        LocalCapabilities.current?.invalidateSelection()
     }
 
     override fun onDestroy() {
@@ -95,20 +111,24 @@ class WeworkService : AccessibilityService() {
         LogUtils.i("onDestroy")
         //关闭自动回复
         WeworkController.enableLoopRunning = false
+        WeworkController.mainLoopRunning = false
+        WeworkController.legacyExecutionActive = false
+        LocalCapabilities.current?.close()
+        LocalCapabilities.current = null
+        if (LegacyMode.isEnabled()) MyLooper.stopForServiceTeardown()
         //隐藏软键盘模式
         softKeyboardController.showMode = SHOW_MODE_AUTO
         if (receiverRegistered) {
             unregisterReceiver(channelReceiver)
             receiverRegistered = false
         }
-        if (::webSocketManager.isInitialized) webSocketManager.close(1000, "service Destroy")
+        webSocketManager.close(1000, "service Destroy")
     }
 
     inner class EchoWebSocketListener : WebSocketListener() {
         private val TAG = "WeworkService.EchoWebSocketListener"
-        private lateinit var socket: WebSocket
         override fun onOpen(webSocket: WebSocket, response: Response) {
-            socket = webSocket
+            if (!WeworkController.legacyExecutionActive) { webSocket.close(1000, "inactive"); return }
             Log.e(TAG, "连接建立")
             val robotId = Constant.robotId
             val appVersion = SPUtils.getInstance().getString("appVersion", "")
@@ -122,6 +142,7 @@ class WeworkService : AccessibilityService() {
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            if (!WeworkController.legacyExecutionActive) return
             LogUtils.i("Received websocket frame: ${text.length} characters")
             try {
                 MyLooper.onMessage(webSocket, text)
@@ -140,7 +161,7 @@ class WeworkService : AccessibilityService() {
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
             super.onClosing(webSocket, code, reason)
-            socket.close(code, reason)
+            webSocket.close(code, reason)
             Log.e(TAG, "服务端关闭连接 $code: $reason")
             sendBroadcast(false)
         }

@@ -9,6 +9,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
+import org.yameida.worktool.protocol.LegacyMode
 
 class HttpResult(private val status: Int, private val text: String, val exception: Exception? = null) {
     fun body(): String = text
@@ -37,6 +38,10 @@ object HttpTransport {
             .build(), callback)
 
     private fun enqueue(request: Request, callback: HttpCallback) {
+        if (!LegacyMode.isEnabled()) {
+            main.post { callback.onError(HttpResult(0, "", IllegalStateException("legacy_mode_disabled"))) }
+            return
+        }
         engine.enqueue(request) { result ->
             val response = HttpResult(result.status, result.body, result.error)
             main.post {
@@ -48,6 +53,6 @@ object HttpTransport {
 
     /** Bounded synchronous download for the existing worker-thread operations. */
     fun download(url: String): ByteArray? = try {
-        engine.download(Request.Builder().url(url).build(), 25 * 1024 * 1024)
+        if (!LegacyMode.isEnabled()) null else engine.download(Request.Builder().url(url).build(), 25 * 1024 * 1024)
     } catch (e: IOException) { null }
 }

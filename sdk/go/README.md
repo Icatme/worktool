@@ -4,9 +4,10 @@ Module: `github.com/Icatme/worktool/sdk/go`. Standard library only; Go 1.23 or n
 
 ```go
 // transport must already be authenticated and explicitly provided by your application.
-client, err := worktool.NewClient(transport, worktool.Target{
+target := worktool.Target{
     DeviceID: pairedDeviceID, SessionID: currentExecutionEpoch,
-})
+}
+client, err := worktool.NewClient(transport, target)
 if err != nil { return err }
 defer client.Close()
 
