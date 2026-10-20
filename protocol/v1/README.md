@@ -1,6 +1,6 @@
 # WorkTool capability protocol v1
 
-UTF-8 JSON messages, maximum 65,536 bytes each, object root. Integers must be exact JSON integers, timestamps Unix milliseconds, strings Unicode. Unknown object fields are ignored for additive evolution; known fields must have the documented types. Unsupported versions and kinds are rejected. Duplicate JSON object keys and nesting deeper than 16 are rejected. No URL, credentials or implicit transport are part of this protocol.
+UTF-8 JSON messages, maximum 65,536 bytes each, object root. Integer fields use integer syntax without fractions or exponents; timestamps are Unix milliseconds. Strings must contain valid Unicode, including paired surrogate escapes. Unknown object fields are ignored for additive evolution; known fields must have the documented types. Unsupported versions and kinds are rejected. Duplicate JSON object keys and nesting deeper than 16 are rejected. The schema describes structure; byte/depth/UTF-16 bounds, duplicate keys and numeric lexical rules are enforced by codecs. No URL, credentials or implicit transport are part of this protocol.
 
 ## Command
 
@@ -18,7 +18,7 @@ UTF-8 JSON messages, maximum 65,536 bytes each, object root. Integers must be ex
 | `capabilities.get` | `{}` | `operations`, `events`, `limits`, `textOutcome` |
 | `text.send` | `conversationId`, nonblank `text` ≤ 4,000 UTF-16 code units | optional evidence; no delivered/read guarantee |
 
-Queries report actual local state. Text permission and event observation default off. A command cannot enable permissions, resume the device, bind a chat or change allowed operations. All commands require a verified peer authorized for that device/session and operation. Display names cannot select a recipient.
+Queries report actual local state. Text permission and event observation default off. A command cannot enable permissions, resume the device, bind a chat or change allowed operations. All commands require a verified peer authorized for that device/session and operation. Display names cannot select a recipient. Android's current-chat handle expires after 60 seconds, is invalidated by navigation/pause/configuration changes, and is consumed by a text attempt. It requires a new local binding for another attempt. An existing user draft is never overwritten.
 
 A batch is `{"version":1,"kind":"batch","commands":[...commands...]}` with 1–32 commands. The entire syntax is checked before any command is admitted. Commands execute separately in array order; there is no atomic transaction or batch-wide success. Each result refers to a command ID. A repeated ID in a batch follows ordinary deduplication/conflict rules.
 
