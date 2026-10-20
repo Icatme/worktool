@@ -8,7 +8,7 @@ Date: 2026-10-20. Base: merged master `a614299530d61adf4edb6345b10c5252aca19157`
 - [PR #5](https://github.com/Icatme/worktool/pull/5): Kotlin core / Go SDK, `67d4281e64f100ba54beac7901445e810ce1b963`, base `docs/capability-protocol-v1`.
 - [PR #6](https://github.com/Icatme/worktool/pull/6): Android integration, base `feat/capability-core-sdk`, with tested source commit `81ee23f68b75c5133a0da86d842edb3339365dc7`. Subsequent closeout edits only update validation documentation.
 
-All PRs remain drafts; this round has no merge authorization. Existing master is not changed by these drafts.
+This section records the initial draft delivery. The user subsequently authorized review, fixes and merging these three PRs. See [the final merge review](MERGE_REVIEW.md) for the new verification round; GitHub records the actual merge status and merge commits.
 
 ## Toolchain and reproducible commands
 
