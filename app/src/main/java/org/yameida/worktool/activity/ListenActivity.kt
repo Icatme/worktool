@@ -234,7 +234,32 @@ class ListenActivity : AppCompatActivity() {
             FloatWindowHelper.isPause = paused
             LocalCapabilities.current?.localPauseChanged()
         }
+        binding.btCapabilityInspect.setOnClickListener { showLocalCapabilityState() }
         updateModeViews()
+    }
+
+    private fun showLocalCapabilityState() {
+        val snapshot = LocalCapabilities.current?.inspectLocal()
+        fun flag(value: Boolean) = getString(if (value) R.string.capability_yes else R.string.capability_no)
+        val message = if (snapshot == null) getString(R.string.capability_inspection_unavailable) else {
+            val records = snapshot.records.takeLast(50).asReversed()
+            getString(R.string.capability_local_state,
+                flag(snapshot.closed), flag(snapshot.policyAvailable), flag(snapshot.paused),
+                flag(snapshot.accessibility), flag(snapshot.textAllowed), flag(snapshot.eventsAllowed),
+                flag(snapshot.selectionBound), snapshot.pending, snapshot.deliveryFailures) + "\n\n" +
+                getString(R.string.capability_local_records, records.size, snapshot.records.size) + "\n" +
+                if (records.isEmpty()) getString(R.string.capability_no_records) else
+                    records.joinToString("\n") { record ->
+                        getString(R.string.capability_local_record, record.recordId, record.operation,
+                            record.state, record.code)
+                    }
+        }
+        MaterialAlertDialogBuilder(this, R.style.Theme_MaterialComponents_DayNight_Dialog)
+            .setTitle(R.string.capability_inspect)
+            .setMessage(message + "\n\n" + getString(R.string.capability_inspection_scope))
+            .setPositiveButton(R.string.capability_refresh) { _, _ -> showLocalCapabilityState() }
+            .setNegativeButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun updateModeViews() {
@@ -244,6 +269,7 @@ class ListenActivity : AppCompatActivity() {
         binding.swCapabilityText.isEnabled = !legacy
         binding.swCapabilityEvents.isEnabled = !legacy
         binding.swCapabilityPause.isEnabled = !legacy
+        binding.btCapabilityInspect.isEnabled = !legacy
         et_channel.isEnabled = legacy
         bt_save.isEnabled = legacy
         tv_host.isEnabled = legacy
