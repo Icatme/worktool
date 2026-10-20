@@ -14,6 +14,8 @@ import org.yameida.worktool.service.log
 import org.yameida.worktool.utils.envcheck.CheckRoot
 import update.UpdateAppUtils
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
+import org.yameida.worktool.protocol.UploadOutcome
 
 object HttpUtil {
 
@@ -167,13 +169,28 @@ object HttpUtil {
     /**
      * 推送本地文件
      */
-    fun pushLocalFile(file: File) {
-        OkGo.post<String>(Constant.getPushLocalFileUrl())
-            .addFileParams("file", listOf(file))
-            .execute(object : StringCallback() {
-                override fun onSuccess(response: Response<String>?) {
-                    LogUtils.d("推送本地文件成功: ${file.absolutePath}")
-                }
-            })
+    fun pushLocalFile(file: File, completion: (Boolean) -> Unit) {
+        val completed = AtomicBoolean(false)
+        fun finish(success: Boolean) {
+            if (completed.compareAndSet(false, true)) completion(success)
+        }
+        try {
+            OkGo.post<String>(Constant.getPushLocalFileUrl())
+                .addFileParams("file", listOf(file))
+                .execute(object : StringCallback() {
+                    override fun onSuccess(response: Response<String>) {
+                        val code = try {
+                            JSONObject(response.body()).optInt("code", -1)
+                        } catch (e: Exception) { null }
+                        finish(UploadOutcome.accepted(response.code(), code))
+                    }
+
+                    override fun onError(response: Response<String>) {
+                        finish(false)
+                    }
+                })
+        } catch (e: Exception) {
+            finish(false)
+        }
     }
 }

@@ -76,6 +76,7 @@ data class ExecCallbackBean(
         const val ERROR_FILE_DOWNLOAD = 201107
         //文件存储异常
         const val ERROR_FILE_STORAGE = 201108
+        const val ERROR_FILE_UPLOAD = 201109
 
         //机器人id错误
         const val ERROR_INVALID_ROBOT_ID = 501011

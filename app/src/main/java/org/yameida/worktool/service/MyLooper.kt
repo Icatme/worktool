@@ -14,14 +14,21 @@ import org.yameida.worktool.model.ExecCallbackBean
 import org.yameida.worktool.model.WeworkMessageBean
 import org.yameida.worktool.model.WeworkMessageListBean
 import org.yameida.worktool.utils.FloatWindowHelper
-import org.yameida.worktool.utils.StringFeatureUtil
+import org.yameida.worktool.protocol.CommandLedger
 import java.nio.charset.StandardCharsets
-import java.util.LinkedHashSet
+
 import kotlin.concurrent.thread
 
 object MyLooper {
 
     private var threadHandler: Handler? = null
+    private val deliveries = CommandLedger(4096, 10 * 60 * 1000L)
+    private data class QueuedCommand(val identity: String, val message: WeworkMessageBean)
+
+    fun finishDelivery(message: WeworkMessageBean) {
+        val index = message.commandIndex ?: return
+        deliveries.finish(CommandLedger.identity(message.messageId, index), System.currentTimeMillis())
+    }
 
     val looper = thread {
         LogUtils.i("myLooper starting...")
@@ -30,24 +37,23 @@ object MyLooper {
         if (myLooper != null) {
             threadHandler = object : Handler(myLooper) {
                 override fun handleMessage(msg: Message) {
+                    val queued = msg.obj as? QueuedCommand
+                    val command = queued?.message ?: (msg.obj as WeworkMessageBean)
+                    // Mark running before waiting so queue-clear cannot release the paused command.
+                    if (queued != null && !deliveries.start(queued.identity)) return
                     while (FloatWindowHelper.isPause) {
-                        LogUtils.i("主功能暂停...")
                         sleep(Constant.CHANGE_PAGE_INTERVAL)
                     }
-                    LogUtils.d("handle message: " + Thread.currentThread().name, msg)
                     try {
-                        dealWithMessage(msg.obj as WeworkMessageBean)
+                        dealWithMessage(command)
                     } catch (e: Exception) {
-                        LogUtils.e(e)
-                        error("执行异常尝试重试 ${e.message}")
-                        try {
-                            goHome()
-                            dealWithMessage(msg.obj as WeworkMessageBean)
-                        } catch (e: Exception) {
-                            LogUtils.e(e)
-                            error("执行异常重试仍失败 ${e.message}")
-                            uploadCommandResult(msg.obj as WeworkMessageBean, ExecCallbackBean.ERROR_ILLEGAL_OPERATION, e.message ?: "", 0L)
-                        }
+                        LogUtils.e("Command failed; automatic replay is unsafe", e.javaClass.simpleName)
+                        uploadCommandResult(command, ExecCallbackBean.ERROR_ILLEGAL_OPERATION,
+                            "执行异常；为避免重复副作用，不自动重试", System.currentTimeMillis())
+                        finishDelivery(command)
+                    } finally {
+                        // File upload completes asynchronously in its result callback.
+                        if (command.type != WeworkMessageBean.GET_LOCAL_FILE) finishDelivery(command)
                     }
                 }
             }
@@ -76,6 +82,7 @@ object MyLooper {
         }
     }
 
+    @Synchronized
     fun onMessage(webSocket: WebSocket?, text: String) {
         val messageList: WeworkMessageListBean<WeworkMessageBean> =
             GsonUtils.fromJson<WeworkMessageListBean<WeworkMessageBean>>(text, object : TypeToken<WeworkMessageListBean<ExecCallbackBean>>(){}.type)
@@ -86,8 +93,7 @@ object MyLooper {
             return
         }
         if (messageList.socketType == WeworkMessageListBean.SOCKET_TYPE_MESSAGE_LIST) {
-            val confirm = WeworkController.weworkService.webSocketManager.confirm(messageList.messageId)
-            if (!confirm) return
+            require(messageList.encryptType == 0 || messageList.encryptType == 1) { "Unsupported encryption" }
             if (messageList.encryptType == 1) {
                 val decryptHexStringAES = EncryptUtils.decryptHexStringAES(
                     messageList.encryptedList,
@@ -98,32 +104,54 @@ object MyLooper {
                 messageList.list =
                     GsonUtils.fromJson(
                         String(decryptHexStringAES, StandardCharsets.UTF_8),
-                        object : TypeToken<ArrayList<WeworkMessageBean>>() {}.type
+                        object : TypeToken<ArrayList<ExecCallbackBean>>() {}.type
                     )
             }
-            val list = if (Constant.duplicationFilter) LinkedHashSet(messageList.list).toList() else messageList.list
-            //去重处理 丢弃之前的重复指令 丢弃之前的获取新消息指令
-            for (message in list) {
+            // Gson allocates this constructor-only envelope without field initializers.
+            require(!messageList.messageId.isNullOrBlank()) { "Missing messageId" }
+            require(messageList.list.isNotEmpty() && messageList.list.size <= 1000) { "Invalid command list size" }
+            require(messageList.list.all { it != null && it.type != null }) { "Invalid command" }
+            // This ACK confirms parsing/receipt only, never execution success.
+            WeworkController.weworkService.webSocketManager.confirm(messageList.messageId)
+            commands@ for ((index, message) in messageList.list.withIndex()) {
+                message.messageId = messageList.messageId
+                message.commandIndex = index
+                message.meta = messageList.meta
+                message.apiSend = messageList.apiSend
+                val identity = CommandLedger.identity(messageList.messageId, index)
+                val admission = if (message.type == WeworkMessageBean.ROBOT_QUEUE_CLEAR) {
+                    deliveries.reserveControl(identity, System.currentTimeMillis())
+                } else deliveries.reserve(identity, System.currentTimeMillis())
+                when (admission) {
+                    CommandLedger.Admission.DUPLICATE -> continue@commands
+                    CommandLedger.Admission.FULL -> {
+                        uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_OPERATION,
+                            "指令队列已满，请稍后使用新 messageId 重试", System.currentTimeMillis())
+                        continue@commands
+                    }
+                    CommandLedger.Admission.ACCEPTED -> Unit
+                }
                 if (message.type == WeworkMessageBean.ROBOT_QUEUE_CLEAR) {
+                    deliveries.start(identity)
                     getInstance().removeCallbacksAndMessages(null)
-                    LogUtils.i("清空全部待执行指令")
+                    deliveries.releaseQueued()
+                    uploadCommandResult(message, ExecCallbackBean.SUCCESS, "", System.currentTimeMillis())
+                    finishDelivery(message)
                 } else if (message.type == WeworkMessageBean.LOOP_RECEIVE_NEW_MESSAGE) {
                     WeworkController.enableLoopRunning = true
+                    finishDelivery(message)
                 } else {
                     WeworkController.mainLoopRunning = false
-                    LogUtils.v("加入指令到执行队列", if (message.fileBase64.isNullOrEmpty()) GsonUtils.toJson(message) else message.type)
-                    val messageWhat = StringFeatureUtil.generateFeatureValue(text)
-                    if (Constant.duplicationFilter) {
-                        getInstance().removeMessages(messageWhat)
-                    }
-                    getInstance().sendMessage(Message.obtain().apply {
-                        what = messageWhat
-                        obj = message.apply {
-                            messageId = messageList.messageId
-                            meta = messageList.meta
-                            apiSend = messageList.apiSend
-                        }
+                    // No payload/hash-based removeMessages: every list position is independent.
+                    val accepted = getInstance().sendMessage(Message.obtain().apply {
+                        what = 0
+                        obj = QueuedCommand(identity, message)
                     })
+                    if (!accepted) {
+                        uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_OPERATION,
+                            "执行队列不可用", System.currentTimeMillis())
+                        finishDelivery(message)
+                    }
                 }
                 getInstance().removeMessages(WeworkMessageBean.LOOP_RECEIVE_NEW_MESSAGE)
                 getInstance().sendMessage(Message.obtain().apply {
@@ -173,6 +201,7 @@ object MyLooper {
                 WeworkController.pushOffice(message)
             }
             WeworkMessageBean.PASS_ALL_FRIEND_REQUEST -> {
+                unsupported(message)
             }
             WeworkMessageBean.ADD_FRIEND_BY_PHONE -> {
                 WeworkController.addFriendByPhone(message)
@@ -250,8 +279,13 @@ object MyLooper {
                 WeworkController.getCorpList(message)
             }
             WeworkMessageBean.ROBOT_CONTROLLER_TEST -> {
-                WeworkController.test(message)
+                unsupported(message)
             }
+            else -> unsupported(message)
         }
+    }
+    private fun unsupported(message: WeworkMessageBean) {
+        uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_OPERATION,
+            "当前客户端未支持该指令", System.currentTimeMillis())
     }
 }

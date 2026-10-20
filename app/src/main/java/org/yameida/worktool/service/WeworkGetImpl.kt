@@ -9,6 +9,8 @@ import org.yameida.worktool.model.ExecCallbackBean
 import org.yameida.worktool.model.WeworkMessageBean
 import org.yameida.worktool.utils.*
 import java.io.File
+import com.blankj.utilcode.util.Utils
+import org.yameida.worktool.protocol.ExportPolicy
 import java.lang.StringBuilder
 
 /**
@@ -37,7 +39,9 @@ object WeworkGetImpl {
      * @param selectList 好友名列表
      */
     fun getFriendInfo(message: WeworkMessageBean, selectList: List<String>): Boolean {
-        return true
+        uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_OPERATION,
+            "当前客户端未实现好友信息查询", System.currentTimeMillis())
+        return false
     }
 
     /**
@@ -154,22 +158,31 @@ object WeworkGetImpl {
      */
     fun getLocalFile(message: WeworkMessageBean, fileUrl: String?): Boolean {
         val startTime = System.currentTimeMillis()
-        val fileUrl = if (fileUrl.isNullOrBlank()) {
-            val currentLogFilePath = LogUtils.getCurrentLogFilePath()
-            FileUtils.copy(currentLogFilePath, "$currentLogFilePath.snapshot")
-            "$currentLogFilePath.snapshot"
-        } else fileUrl
-        LogUtils.d("localFileUrl: $fileUrl")
-        val file = File(fileUrl)
-        if (!file.exists()) {
-            LogUtils.e("文件不存在: ${file.absolutePath}")
-            uploadCommandResult(message, ExecCallbackBean.ERROR_TARGET, "文件不存在: ${file.absolutePath}", startTime)
+        var snapshot: File? = null
+        try {
+            val reviewed = ExportPolicy.readReviewedFile(File(Utils.getApp().filesDir, "exports"), fileUrl)
+            snapshot = File.createTempFile("reviewed-export-", ".tmp", Utils.getApp().cacheDir)
+            snapshot.writeBytes(reviewed)
+            val upload = snapshot
+            HttpUtil.pushLocalFile(upload) { success ->
+                try {
+                    uploadCommandResult(message,
+                        if (success) ExecCallbackBean.SUCCESS else ExecCallbackBean.ERROR_FILE_UPLOAD,
+                        if (success) "" else "文件上传未获服务端成功确认", startTime)
+                } finally {
+                    upload.delete()
+                    MyLooper.finishDelivery(message)
+                }
+            }
+            // Accepted for upload; success is reported only from the asynchronous callback.
+            return true
+        } catch (e: Exception) {
+            snapshot?.delete()
+            uploadCommandResult(message, ExecCallbackBean.ERROR_ILLEGAL_PERMISSION,
+                "只允许导出 files/exports 中已人工脱敏审核的 1 MiB 内文本文件", startTime)
+            MyLooper.finishDelivery(message)
             return false
         }
-        HttpUtil.pushLocalFile(file)
-        LogUtils.d("推送本地文件成功: ${file.absolutePath}")
-        uploadCommandResult(message, ExecCallbackBean.SUCCESS, "", startTime)
-        return true
     }
 
     /**
