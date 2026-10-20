@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:worktool:capability:v1",
+  "title": "WorkTool capability protocol v1",
+  "oneOf": [
+    {"$ref": "#/$defs/command"}, {"$ref": "#/$defs/batch"},
+    {"$ref": "#/$defs/result"}, {"$ref": "#/$defs/event"}, {"$ref": "#/$defs/error"}
+  ],
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[A-Za-z0-9._:-]{1,128}$"},
+    "timestamp": {"type": "integer", "minimum": 1, "maximum": 9007199254740991},
+    "code": {"type": "string", "pattern": "^[a-z0-9_]{1,64}$"},
+    "target": {
+      "type": "object", "required": ["deviceId", "sessionId"],
+      "properties": {"deviceId": {"$ref": "#/$defs/identifier"}, "sessionId": {"$ref": "#/$defs/identifier"}}
+    },
+    "command": {
+      "type": "object", "required": ["version", "kind", "id", "target", "operation", "params", "expiresAt"],
+      "properties": {
+        "version": {"const": 1}, "kind": {"const": "command"}, "id": {"$ref": "#/$defs/identifier"},
+        "target": {"$ref": "#/$defs/target"}, "operation": {"type": "string", "minLength": 1, "maxLength": 64},
+        "params": {"type": "object"}, "expiresAt": {"$ref": "#/$defs/timestamp"}
+      },
+      "allOf": [{
+        "if": {"properties": {"operation": {"const": "text.send"}}},
+        "then": {"properties": {"params": {
+          "type": "object", "required": ["conversationId", "text"],
+          "properties": {
+            "conversationId": {"$ref": "#/$defs/identifier"},
+            "text": {"type": "string", "minLength": 1, "maxLength": 4000, "description": "Also bounded to 4000 UTF-16 code units and nonblank by implementations"}
+          }
+        }}}
+      }]
+    },
+    "batch": {
+      "type": "object", "required": ["version", "kind", "commands"],
+      "properties": {"version": {"const": 1}, "kind": {"const": "batch"}, "commands": {
+        "type": "array", "minItems": 1, "maxItems": 32, "items": {"$ref": "#/$defs/command"}
+      }}
+    },
+    "result": {
+      "type": "object", "required": ["version", "kind", "commandId", "deviceId", "sessionId", "sequence", "state", "code", "data"],
+      "properties": {
+        "version": {"const": 1}, "kind": {"const": "result"}, "commandId": {"$ref": "#/$defs/identifier"},
+        "deviceId": {"$ref": "#/$defs/identifier"}, "sessionId": {"$ref": "#/$defs/identifier"},
+        "sequence": {"type": "integer", "minimum": 1, "maximum": 3},
+        "state": {"enum": ["accepted", "running", "succeeded", "failed", "partial_failure", "unknown", "rejected"]},
+        "code": {"$ref": "#/$defs/code"}, "data": {"type": "object"}
+      },
+      "allOf": [
+        {"if": {"properties": {"state": {"const": "accepted"}}}, "then": {"properties": {"sequence": {"const": 1}}}},
+        {"if": {"properties": {"state": {"const": "running"}}}, "then": {"properties": {"sequence": {"const": 2}}}},
+        {"if": {"properties": {"state": {"enum": ["succeeded", "failed", "partial_failure", "unknown"]}}}, "then": {"properties": {"sequence": {"const": 3}}}},
+        {"if": {"properties": {"state": {"const": "rejected"}}}, "then": {"properties": {"sequence": {"enum": [1, 3]}}}}
+      ]
+    },
+    "event": {
+      "type": "object", "required": ["version", "kind", "eventId", "deviceId", "sessionId", "name", "occurredAt", "data"],
+      "properties": {
+        "version": {"const": 1}, "kind": {"const": "event"}, "eventId": {"$ref": "#/$defs/identifier"},
+        "deviceId": {"$ref": "#/$defs/identifier"}, "sessionId": {"$ref": "#/$defs/identifier"},
+        "name": {"const": "message.observed"}, "occurredAt": {"$ref": "#/$defs/timestamp"},
+        "data": {
+          "type": "object", "required": ["conversationId", "text", "sender", "source"],
+          "properties": {
+            "conversationId": {"$ref": "#/$defs/identifier"}, "text": {"type": "string", "minLength": 1, "maxLength": 4000},
+            "sender": {"enum": ["remote", "self"]}, "source": {"const": "visible_ui"}
+          }
+        }
+      }
+    },
+    "error": {
+      "type": "object", "required": ["version", "kind", "code"],
+      "properties": {
+        "version": {"const": 1}, "kind": {"const": "error"}, "code": {"$ref": "#/$defs/code"},
+        "commandId": {"$ref": "#/$defs/identifier"}
+      }
+    }
+  }
+}

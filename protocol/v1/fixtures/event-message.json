@@ -1,0 +1,1 @@
+{"version":1,"kind":"event","eventId":"evt-1","deviceId":"device-a","sessionId":"epoch-a","name":"message.observed","occurredAt":1900000000000,"data":{"conversationId":"chat-local-1","text":"你好，SDK 👋","sender":"remote","source":"visible_ui"}}

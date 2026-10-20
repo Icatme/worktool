@@ -1,0 +1,1 @@
+{"version":1,"kind":"command","id":"cmd-state-1","target":{"deviceId":"device-a","sessionId":"epoch-a"},"operation":"state.get","params":{},"expiresAt":2000000000000,"futureExtension":true}
