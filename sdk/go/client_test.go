@@ -304,3 +304,96 @@ func TestReadActualKotlinContract(t *testing.T) {
 		}
 	}
 }
+
+type blockedTransport struct {
+	*fakeTransport
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (f *blockedTransport) Send(ctx context.Context, raw []byte) error {
+	command, err := DecodeCommand(raw)
+	if err != nil {
+		return err
+	}
+	if command.ID == "blocker" {
+		close(f.entered)
+		select {
+		case <-f.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-f.closed:
+			return io.EOF
+		}
+		return io.ErrUnexpectedEOF
+	}
+	return f.fakeTransport.Send(ctx, raw)
+}
+
+// A valid command can expire while another call owns the serialized Send slot.
+func TestQueuedExpiryDoesNotReachTransportOrReuseID(t *testing.T) {
+	f := fake()
+	f.sendError = io.ErrUnexpectedEOF // A regression must fail promptly, not wait for a reply.
+	transport := &blockedTransport{fakeTransport: f, entered: make(chan struct{}), release: make(chan struct{})}
+	c, err := NewClient(transport, target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	blocked := make(chan completion, 1)
+	go func() { r, err := c.Call(context.Background(), query("blocker")); blocked <- completion{r, err} }()
+	mustReceive(t, transport.entered)
+	command := query("queued-expiry")
+	command.ExpiresAt = time.Now().Add(150 * time.Millisecond).UnixMilli()
+	done := make(chan completion, 1)
+	go func() { r, err := c.Call(context.Background(), command); done <- completion{r, err} }()
+	// Observe admission before advancing past expiry, so this cannot pass on the initial check alone.
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		c.mu.Lock()
+		p := c.pending[command.ID]
+		queued := p != nil && !p.attempted
+		c.mu.Unlock()
+		if queued {
+			break
+		}
+		select {
+		case got := <-done:
+			t.Fatalf("call did not enter send queue: %+v", got)
+		default:
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("call never entered send queue")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	for time.Now().UnixMilli() < command.ExpiresAt {
+		time.Sleep(time.Millisecond)
+	}
+	close(transport.release)
+	mustReceive(t, blocked)
+	got := mustReceive(t, done)
+	var outcome *Error
+	if !errors.As(got.err, &outcome) || outcome.Code != "expired" || outcome.OutcomeUnknown || outcome.CommandID != command.ID {
+		t.Fatalf("expected definitely unsubmitted expiry, got %v (%+v)", got.err, outcome)
+	}
+	select {
+	case raw := <-f.sent:
+		t.Fatalf("expired command reached transport: %s", raw)
+	default:
+	}
+	if _, err := c.Call(context.Background(), query(command.ID)); !errors.As(err, &outcome) || outcome.Code != "id_reused" {
+		t.Fatalf("queued expiry forgot reserved ID: %v", err)
+	}
+	// The rejected command must also release the send slot for a distinct valid command.
+	fresh := make(chan completion, 1)
+	go func() { r, err := c.Call(context.Background(), query("fresh")); fresh <- completion{r, err} }()
+	raw := mustReceive(t, f.sent)
+	decoded, err := DecodeCommand(raw)
+	if err != nil || decoded.ID != "fresh" {
+		t.Fatalf("unexpected subsequent send: %s, %v", raw, err)
+	}
+	if got := mustReceive(t, fresh); !errors.As(got.err, &outcome) || outcome.Code != "send_unknown" || !outcome.OutcomeUnknown {
+		t.Fatalf("subsequent send lost uncertainty: %+v", got)
+	}
+}
