@@ -12,8 +12,8 @@ class LocalInspectionTest {
         Wire.obj("conversationId" to "private-chat", "text" to "private-message"), 1000)
 
     @Test fun queriesAreReadOnlyDetachedAndNeverReplayUnknown() {
-        val tasks = ArrayDeque<Runnable>(); var sends = 0
-        val engine = CommandEngine(target, { enabled }, { _, _ ->
+        val tasks = ArrayDeque<Runnable>(); var sends = 0; var policyAvailable = true
+        val engine = CommandEngine(target, { if (policyAvailable) enabled else error("private-policy") }, { _, _ ->
             sends++; Outcome("unknown", "ui_click_unconfirmed", Wire.obj("private-result" to "private-evidence"))
         }, Executor { tasks.add(it) }, { 1L }, ledgerLimit = 1)
         val frames = mutableListOf<String>()
@@ -39,6 +39,51 @@ class LocalInspectionTest {
         engine.receive(Wire.encode(command("another-id")), peer, frames::add)
         assertEquals("ledger_full", Wire.decodeResult(frames.last()).code)
         assertEquals(1, engine.inspectLocal().records.size); assertNull(engine.localResult(2))
+        policyAvailable = false; engine.close()
+        val frameCount = frames.size
+        repeat(4) {
+            val closed = engine.inspectLocal()
+            assertTrue(closed.closed); assertFalse(closed.policyAvailable)
+            assertEquals(listOf(terminal), closed.records)
+            assertEquals(terminal, engine.localResult(1))
+            assertEquals(0, closed.pending)
+            assertFalse(closed.toString().contains("private"))
+        }
+        assertEquals(1, sends); assertTrue(tasks.isEmpty()); assertEquals(frameCount, frames.size)
+    }
+
+    @Test fun queryingQueuedCommandsAfterCloseOrPolicyFailureDoesNotExecuteOrConsumeThem() {
+        for (mode in listOf("closed", "policy_unavailable")) {
+            val tasks = ArrayDeque<Runnable>(); var sends = 0; var policyAvailable = true
+            val frames = mutableListOf<String>()
+            val engine = CommandEngine(target, { if (policyAvailable) enabled else error("private-policy") },
+                { _, _ -> sends++; Outcome("unknown", "ui_click_unconfirmed") },
+                Executor { tasks.add(it) }, { 1L })
+            engine.receive(Wire.encode(command()), peer, frames::add)
+            val accepted = engine.localResult(1)!!
+            if (mode == "closed") engine.close() else policyAvailable = false
+            repeat(4) {
+                val queued = engine.inspectLocal()
+                assertEquals(1, queued.pending)
+                assertEquals(listOf(accepted), queued.records)
+                assertEquals(accepted, engine.localResult(1))
+                for (missing in listOf(Int.MIN_VALUE, 0, 2, Int.MAX_VALUE))
+                    assertNull(engine.localResult(missing))
+            }
+            assertEquals(1, tasks.size); assertEquals(1, frames.size); assertEquals(0, sends)
+            tasks.removeFirst().run()
+            val terminal = engine.localResult(1)!!
+            assertEquals("rejected", terminal.state)
+            assertEquals(if (mode == "closed") "operation_disabled" else mode, terminal.code)
+            policyAvailable = true
+            repeat(4) {
+                assertEquals(terminal, engine.localResult(1))
+                assertEquals(listOf(terminal), engine.inspectLocal().records)
+                assertEquals(0, engine.inspectLocal().pending)
+            }
+            assertEquals(0, sends); assertTrue(tasks.isEmpty()); assertEquals(2, frames.size)
+            assertEquals("accepted", accepted.state)
+        }
     }
 
     @Test fun arbitraryOperationsAndExecutorCodesCannotLeakThroughLocalRecords() {

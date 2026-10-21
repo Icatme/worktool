@@ -86,13 +86,36 @@ class SimulatedUiTest {
         }
     }
 
-    @Test fun duplicateCommandBeforeAndAfterAmbiguousClickNeverSendsTwice() {
+    @Test fun duplicatesAndInspectionDuringAmbiguousSendNeverActTwice() {
         for (outcome in listOf("true", "false", "exception")) {
             val f = Fixture()
+            var inspectedWhileRunning = false
             f.ui.clickResult = outcome == "true"; f.ui.clickThrows = outcome == "exception"
+            f.ui.afterInput = {
+                val frameCount = f.frames.size
+                repeat(4) {
+                    val running = f.engine.inspectLocal()
+                    assertEquals("running", running.records.single().state)
+                    assertEquals(running.records.single(), f.engine.localResult(1))
+                    assertEquals(1, running.pending); assertFalse(running.selectionBound)
+                    assertEquals(1, f.ui.inputs); assertEquals(0, f.ui.clicks)
+                    assertTrue(f.tasks.isEmpty()); assertEquals(frameCount, f.frames.size)
+                }
+                inspectedWhileRunning = true
+            }
             f.receive(); f.receive(); f.drain()
+            assertTrue("inspection must run during input", inspectedWhileRunning)
             assertEquals("unknown", f.result().state)
             val terminal = f.result()
+            val frameCount = f.frames.size
+            repeat(4) {
+                val complete = f.engine.inspectLocal()
+                assertEquals("unknown", complete.records.single().state)
+                assertEquals(complete.records.single(), f.engine.localResult(1))
+                assertEquals(0, complete.pending)
+                assertEquals(1, f.ui.inputs); assertEquals(1, f.ui.clicks)
+                assertTrue(f.tasks.isEmpty()); assertEquals(frameCount, f.frames.size)
+            }
             repeat(3) { f.receive(); f.drain(); assertEquals(terminal, f.result()) }
             assertEquals(1, f.ui.inputs); assertEquals(1, f.ui.clicks)
             assertFalse(f.frames.joinToString().contains("private UI details"))

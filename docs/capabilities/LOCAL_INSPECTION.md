@@ -32,3 +32,13 @@ The cloud environment has JDK 21 but no Android SDK/Gradle installation. The Gra
 The actual Kotlin compiler runs with JVM target 1.8 and a 512 MB heap, followed by JUnit. Go exports its actual command/batch fixtures before JUnit; Kotlin emits the reciprocal fixtures before Go tests run with `WORKTOOL_REQUIRE_KOTLIN=1`. All compile/test commands use the shared cloud build lock and Go parallelism is limited to two workers / one package.
 
 Cloud execution passed: 30 JUnit methods (28 capability-core and two existing text-outcome tests), bidirectional Go/Kotlin fixtures, Go test/race/vet, and 30 Android source contract checks. Evidence is retained in `/tmp/worktool-jvm/check.sh`, `/tmp/worktool-jvm/final-validation.log`, and `/tmp/worktool-jvm/SHA256SUMS` in this cloud session. Android app compilation, lint, APK generation and device validation are not part of these JVM/source checks and remain unverified in this environment. No signing, credential creation or secret readout, real accounts, real channel, tunnel, CI, deployment or release was used.
+
+### 2026-10-21 query-boundary follow-up
+
+No production defect was reproduced and no production source changed. The follow-up extends the existing local-inspection and simulated-UI tests:
+
+- Queries of an accepted, still-queued command after close or policy failure preserve its pending state until the queued task runs; they neither execute it nor remove it from the queue. Absent local record ordinals remain absent. Execution subsequently rejects, without input or sending.
+- Repeated queries during simulated text input report `running` without adding input, clicking early, emitting frames or scheduling work. The true/false/exception click cases then retain their original `unknown` result without replay.
+- A full ledger's recorded `unknown` remains readable after close and policy failure; queries neither clear records nor restore capacity.
+
+The offline follow-up passes 31 JUnit methods (29 capability-core plus the same two app text-outcome methods), the original `sdk/go` package's test/race/vet checks and bidirectional wire fixtures, and the same 30 static Android source/XML checks. JUnit uses the actual capability-core sources in an isolated JVM compilation with the cached configured compiler/dependencies; it is not an Android app or Gradle build. Go uses `GOPROXY=off` and `GOTOOLCHAIN=local`. No new dependency download was required. Evidence and the exact command script are in `/workspace/recovery/2026-10-20-four-projects/2026-10-21/worktool` in this cloud session; Android build/lint/device acceptance remains a separate, unexecuted gate.
