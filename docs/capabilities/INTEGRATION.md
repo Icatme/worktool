@@ -21,6 +21,8 @@ This sketch deliberately has no built-in verifier or endpoint. `VerifiedPeer` mu
 
 Before the accessibility service exists, the seam is absent; a future pairing/control adapter must report that state locally and cannot fabricate an epoch or permission. `state.get` after attachment reports current local policy. Queries do not grant any capability.
 
+The local control screen can inspect current state and redacted command records without attaching a channel. `inspectLocal()` and `localResult(recordId)` are in-process reads, not protocol commands; records are bounded by the existing current-epoch ledger and disappear on service reconstruction. See [local inspection and simulated UI validation](LOCAL_INSPECTION.md) for redaction, uncertainty and acceptance limits.
+
 ## Local controls and UI adapter
 
 - Independent mode is the process default. Text and event controls start off; service startup pauses execution. Controls cannot be changed by protocol messages.

@@ -29,7 +29,7 @@ class CommandEngine(
     private val pendingLimit: Int = 32
 ) {
     init { require(Wire.validId(target.deviceId) && Wire.validId(target.sessionId)); require(ledgerLimit > 0 && pendingLimit > 0) }
-    private data class Entry(val command: Command, val owner: String, var result: Result)
+    private data class Entry(val recordId: Int, val command: Command, val owner: String, var result: Result)
     private val lock = Any()
     private val ledger = linkedMapOf<String, Entry>()
     private var pending = 0
@@ -58,7 +58,7 @@ class CommandEngine(
             val reject = if (closed) "operation_disabled" else gate(c) ?: if (pending >= pendingLimit) "busy" else null
             val r = if (reject == null) result(c, 1, "accepted", "accepted")
                 else result(c, 1, "rejected", reject)
-            ledger[c.id] = Entry(c, peer.id, r)
+            ledger[c.id] = Entry(ledger.size + 1, c, peer.id, r)
             if (reject == null) { pending++; execute = true }
             Wire.encode(r)
         }
@@ -126,6 +126,29 @@ class CommandEngine(
         // Delivery failure never rolls back or retries a UI action. The ledger remains queryable by duplicate.
         try { sink.send(frame) } catch (_: Exception) { deliveryFailures.incrementAndGet() }
     }
+    /** No admission, scheduler, transport or UI action. Returned records contain no payload or identities. */
+    fun inspectLocal(): LocalSnapshot = synchronized(lock) {
+        val p = try { policy() } catch (_: Exception) { null }
+        LocalSnapshot(closed, p != null, closed || p?.paused != false,
+            !closed && p?.accessibility == true, !closed && p?.textAllowed == true,
+            !closed && p?.eventsAllowed == true, !closed && p?.conversationId != null,
+            pending, deliveryFailures.get(), ledger.values.map { localRecord(it) })
+    }
+    /** recordId is local to this engine instance; it is not a wire command ID or cross-restart key. */
+    fun localResult(recordId: Int): LocalCommandRecord? = synchronized(lock) {
+        ledger.values.firstOrNull { it.recordId == recordId }?.let { localRecord(it) }
+    }
+    private fun localRecord(e: Entry) = LocalCommandRecord(e.recordId,
+        e.command.operation.takeIf { it in OPERATIONS } ?: "unsupported_operation",
+        e.result.sequence, e.result.state,
+        e.result.code.takeIf { it in LOCAL_CODES } ?: "executor_result")
     fun close() = synchronized(lock) { closed = true }
-    companion object { val OPERATIONS = listOf("state.get", "capabilities.get", "text.send") }
+    companion object {
+        val OPERATIONS = listOf("state.get", "capabilities.get", "text.send")
+        // Executor codes and unsupported operation names are untrusted text too.
+        private val LOCAL_CODES = setOf("accepted", "running", "ok", "busy", "expired", "paused",
+            "permission_denied", "operation_disabled", "unsupported_operation", "policy_unavailable",
+            "target_unavailable", "target_ambiguous", "draft_not_empty", "invalid_text",
+            "input_unconfirmed", "ui_click_unconfirmed", "execution_unknown", "invalid_executor_result")
+    }
 }

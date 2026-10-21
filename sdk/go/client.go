@@ -138,6 +138,13 @@ func (c *Client) Call(ctx context.Context, command Command) (Result, error) {
 		<-c.sendGate
 		return Result{}, &Error{Code: "not_submitted", CommandID: command.ID, Cause: err}
 	}
+	// Waiting for another Send can outlive the command even when its context remains live.
+	// Refuse it before marking an attempt, so local expiry never implies unknown delivery.
+	if command.ExpiresAt <= time.Now().UnixMilli() {
+		c.mu.Unlock()
+		<-c.sendGate
+		return Result{}, &Error{Code: "expired", CommandID: command.ID}
+	}
 	p.attempted = true
 	c.mu.Unlock()
 	err = c.transport.Send(ctx, raw)

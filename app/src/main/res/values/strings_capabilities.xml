@@ -1,4 +1,14 @@
 <resources>
+    <string name="capability_inspect">查看本地状态与记录</string>
+    <string name="capability_yes">是</string>
+    <string name="capability_no">否</string>
+    <string name="capability_refresh">刷新</string>
+    <string name="capability_inspection_unavailable">独立能力服务尚未启动或已停止，没有当前会话的状态与记录。</string>
+    <string name="capability_local_state">已关闭：%1$s\n策略可读取：%2$s\n已暂停：%3$s\n辅助服务可用：%4$s\n允许文本：%5$s\n允许观察：%6$s\n当前会话已绑定：%7$s\n待完成指令：%8$d\n结果回传失败次数：%9$d</string>
+    <string name="capability_local_records">当前执行会话的指令记录（最近 %1$d / %2$d 条）：</string>
+    <string name="capability_local_record">#%1$d %2$s：%3$s（%4$s）</string>
+    <string name="capability_no_records">暂无已登记指令。</string>
+    <string name="capability_inspection_scope">只读快照；不包含消息正文、会话或远端身份。序号仅在当前执行会话有效，服务重建后清空。unknown 表示结果未知，不代表失败，不会自动重发；此页没有重试操作。</string>
     <string name="capability_legacy">旧平台兼容（本次进程；主功能启动后锁定）</string>
     <string name="capability_text">本地允许当前会话文本操作</string>
     <string name="capability_events">本地允许当前会话纯文本观察</string>

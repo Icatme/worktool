@@ -39,6 +39,9 @@ class AndroidCapabilities(private val service: WeworkService) : AutoCloseable {
         eventsAllowed = !closed && LocalCapabilities.eventsAllowed,
         conversationId = selection.conversationId
     )
+    /** Local read-only diagnostics; no transport attachment or replay is required. */
+    fun inspectLocal(): LocalSnapshot { mainThread(); return engine.inspectLocal() }
+    fun localResult(recordId: Int): LocalCommandRecord? { mainThread(); return engine.localResult(recordId) }
     /**
      * A future transport adapter must authenticate externally before creating VerifiedPeer.
      * Must be called on main; there is deliberately no fake production verifier here.
