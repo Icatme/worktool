@@ -42,3 +42,14 @@ No production defect was reproduced and no production source changed. The follow
 - A full ledger's recorded `unknown` remains readable after close and policy failure; queries neither clear records nor restore capacity.
 
 The offline follow-up passes 31 JUnit methods (29 capability-core plus the same two app text-outcome methods), the original `sdk/go` package's test/race/vet checks and bidirectional wire fixtures, and the same 30 static Android source/XML checks. JUnit uses the actual capability-core sources in an isolated JVM compilation with the cached configured compiler/dependencies; it is not an Android app or Gradle build. Go uses `GOPROXY=off` and `GOTOOLCHAIN=local`. No new dependency download was required. Evidence and the exact command script are in `/workspace/recovery/2026-10-20-four-projects/2026-10-21/worktool` in this cloud session; Android build/lint/device acceptance remains a separate, unexecuted gate.
+
+### 2026-10-21 expiry and scheduler boundaries
+
+The next test-only follow-up adds two local-inspection tests:
+
+- At one millisecond before, exactly at, and one millisecond after a queued command's expiry, queries retain the accepted snapshot without executing or renewing it. Execution rejects at or after the boundary. Repeated requests, including after a clock rollback, return the retained terminal result without scheduling another action.
+- A scheduler rejection is retained as `rejected/busy`, releases the pending slot, and remains queryable without leaking the scheduler exception. A duplicate emits the retained terminal result without rescheduling; a distinct command can use the released slot.
+
+No production defect was reproduced and no production source changed. The tests additionally check emitted frame counts, states and terminal sequence numbers to avoid mistaking a stale frame for a response. Independent review covered these assertions and the engine implementation.
+
+Validation in dot's own cloud workspace: 33 JUnit methods (31 capability-core plus two existing app text-outcome tests), bidirectional Go/Kotlin wire fixtures, Go test/race/vet, and 30 Android source/XML contract checks. This uses the actual configured Kotlin 2.3.10 compiler, Gson 2.13.2 and JUnit 4.13.2 from Maven, verified against published artifact checksums, plus Go 1.27.3 verified against its official SHA-256. Tests run with `GOPROXY=off` and `GOTOOLCHAIN=local`. These isolated JVM and source checks do not constitute an Android/Gradle build, lint, APK, device, account, or delivery acceptance.

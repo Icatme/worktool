@@ -86,6 +86,88 @@ class LocalInspectionTest {
         }
     }
 
+    @Test fun queriesDoNotRenewQueuedExpiryOrReplayExpiredCommands() {
+        for (executionTime in listOf(999L, 1000L, 1001L)) {
+            var now = 1L; var sends = 0
+            val tasks = ArrayDeque<Runnable>(); val frames = mutableListOf<String>()
+            val engine = CommandEngine(target, { enabled }, { _, _ ->
+                sends++; Outcome("unknown", "ui_click_unconfirmed")
+            }, Executor { tasks.add(it) }, { now }, pendingLimit = 1)
+            engine.receive(Wire.encode(command()), peer, frames::add)
+            val accepted = engine.localResult(1)!!
+            now = executionTime
+            repeat(4) {
+                assertEquals(accepted, engine.localResult(1))
+                val snapshot = engine.inspectLocal()
+                assertEquals(listOf(accepted), snapshot.records)
+                assertEquals(1, snapshot.pending)
+            }
+            assertEquals(1, tasks.size); assertEquals(1, frames.size); assertEquals(0, sends)
+            tasks.removeFirst().run()
+            val terminal = engine.localResult(1)!!
+            val expired = executionTime >= command().expiresAt
+            assertEquals(if (expired) "rejected" else "unknown", terminal.state)
+            assertEquals(if (expired) "expired" else "ui_click_unconfirmed", terminal.code)
+            assertEquals(3, terminal.sequence)
+            assertEquals(if (expired) listOf("accepted", "rejected") else listOf("accepted", "running", "unknown"),
+                frames.map { Wire.decodeResult(it).state })
+            assertEquals(3, Wire.decodeResult(frames.last()).sequence)
+            assertEquals(if (expired) 0 else 1, sends)
+            assertEquals(0, engine.inspectLocal().pending)
+            // Even a clock rollback cannot turn a recorded terminal result into fresh work.
+            now = 1L
+            val frameCount = frames.size
+            repeat(4) {
+                assertEquals(terminal, engine.localResult(1)); engine.inspectLocal()
+                engine.receive(Wire.encode(command()), peer, frames::add)
+                assertEquals(terminal.state, Wire.decodeResult(frames.last()).state)
+                assertEquals(terminal.code, Wire.decodeResult(frames.last()).code)
+            }
+            assertEquals(frameCount + 4, frames.size); assertTrue(tasks.isEmpty())
+            assertEquals(if (expired) 0 else 1, sends)
+            assertEquals("accepted", accepted.state)
+        }
+    }
+
+    @Test fun schedulerRejectionRemainsQueryableAndReleasesThePendingSlot() {
+        var rejectSchedule = true; var schedules = 0; var sends = 0
+        val tasks = ArrayDeque<Runnable>(); val frames = mutableListOf<String>()
+        val engine = CommandEngine(target, { enabled }, { _, _ ->
+            sends++; Outcome("unknown", "ui_click_unconfirmed")
+        }, Executor {
+            schedules++
+            if (rejectSchedule) throw java.util.concurrent.RejectedExecutionException("private-scheduler")
+            tasks.add(it)
+        }, { 1L }, pendingLimit = 1)
+        engine.receive(Wire.encode(command()), peer, frames::add)
+        val rejected = engine.localResult(1)!!
+        assertEquals("rejected", rejected.state); assertEquals("busy", rejected.code)
+        assertEquals(3, rejected.sequence)
+        assertEquals(listOf("accepted", "rejected"), frames.map { Wire.decodeResult(it).state })
+        repeat(4) {
+            val snapshot = engine.inspectLocal()
+            assertEquals(listOf(rejected), snapshot.records); assertEquals(0, snapshot.pending)
+            assertEquals(rejected, engine.localResult(1))
+            assertFalse(snapshot.toString().contains("private"))
+        }
+        assertEquals(1, schedules); assertEquals(2, frames.size); assertEquals(0, sends)
+        rejectSchedule = false
+        val frameCount = frames.size
+        engine.receive(Wire.encode(command()), peer, frames::add)
+        assertEquals(frameCount + 1, frames.size)
+        assertEquals("rejected", Wire.decodeResult(frames.last()).state)
+        assertEquals(3, Wire.decodeResult(frames.last()).sequence)
+        assertEquals("busy", Wire.decodeResult(frames.last()).code)
+        assertEquals(1, schedules); assertTrue(tasks.isEmpty())
+        engine.receive(Wire.encode(command("next-command")), peer, frames::add)
+        assertEquals("accepted", engine.localResult(2)!!.state)
+        assertEquals(1, engine.inspectLocal().pending); assertEquals(2, schedules)
+        tasks.removeFirst().run()
+        assertEquals("unknown", engine.localResult(2)!!.state)
+        assertEquals(rejected, engine.localResult(1)); assertEquals(0, engine.inspectLocal().pending)
+        assertEquals(1, sends); assertTrue(tasks.isEmpty())
+    }
+
     @Test fun arbitraryOperationsAndExecutorCodesCannotLeakThroughLocalRecords() {
         val engine = CommandEngine(target, { enabled }, { _, _ ->
             Outcome("unknown", "private_customer_code", Wire.obj("body" to "private-evidence"))
